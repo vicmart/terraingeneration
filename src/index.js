@@ -181,16 +181,6 @@ window.onload = function() {
 												{pos: 0.9, color: [255,255,255]}, 
 												{pos: 1, color: [255,255,255]}];
 
-				var red = (1 - height) * 255;
-				var green = (1 - height) * 255;
-				var blue = (1 - height) * 255;
-
-				if (height < 0.25) {
-					red = 0;
-					green = 0;
-					blue = 255;
-				}
-
 				if (visitedPixels[pixelIndex / 4] == 1) {
 					green = 255;
 					red = 0;
