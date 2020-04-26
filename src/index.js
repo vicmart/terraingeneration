@@ -17,7 +17,7 @@ window.onload = function() {
 	var imagedata = context.createImageData(width, height);
 
 	function generateNoise() {
-		let heightMap = perlin.generatePerlinNoise(width, height, {octaveCount: 7, persistence: 0.3});
+		let heightMap = perlin.generatePerlinNoise(width, height, {octaveCount: 6, persistence: 0.3});
 		// Normalize for distance from center
 		for (let x = 0; x < width; x++) {
 			for (let y = 0; y < height; y++) {
@@ -29,14 +29,14 @@ window.onload = function() {
 		let newHeightMap = Array(width * height).fill(0);
 
 		// Blur
-		let range = 10;
+		let range = 20;
 		for (let x = 0; x < width; x++) {
 			for (let y = 0; y < height; y++) {
 				let totalHeight = 0;
 				let count = 0;
 
-				for (let xi = Math.max(0, x - range); xi <= Math.min(width, x + range); xi++) {
-					for (let yi = Math.max(0, y - range); yi <= Math.min(height, y + range); yi++) {
+				for (let xi = Math.max(0, x - range); xi < Math.min(width, 1 + x + range); xi++) {
+					for (let yi = Math.max(0, y - range); yi < Math.min(height, 1 + y + range); yi++) {
 						totalHeight += heightMap[(yi * width) + xi];
 						count++;
 					}
