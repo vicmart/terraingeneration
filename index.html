@@ -8,9 +8,27 @@
 				margin: 0;
 				display: flex;
 			}
+
+			canvas
+			{
+				position: absolute;
+				left: 0;
+				top: 0;
+			}
+
+			#minimap
+			{
+				position: fixed;
+				z-index: 10;
+				top: 10px;
+				left: 10px;
+				width: 200px;
+				height: 200px;
+				opacity: 1;
+			}
 		</style>
 	</head>
 	<body>
-		<canvas id="viewport"></canvas>
+		<canvas id="minimap"></canvas>
 	<script type="text/javascript" src="main.js"></script></body>
 </html>
