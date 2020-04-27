@@ -25,6 +25,6 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
     - run: npm run-script build
-    - run: git subtree push --prefix dist origin gh-pages
+    #- run: git subtree push --prefix dist origin gh-pages
       env:
         CI: true
