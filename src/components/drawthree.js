@@ -70,6 +70,7 @@ export default class DrawThree {
   };
 
   geometryFromVerticies(matrix, amplitude, offset) {
+    let seaLevel = 0.2;
     let color = new THREE.Color();
     let tempRGB = [];
     let vertices = new Float32Array(matrix.length * matrix[0].length * 18);
@@ -80,52 +81,62 @@ export default class DrawThree {
         let arrayPosition = (x * 18) + (y * matrix.length * 18);
         // Triangle 1
         vertices[arrayPosition + 0] = (x + 0) - (matrix.length/2.0) + 0.5 + offset.x;
-        vertices[arrayPosition + 1] = matrix[x][y] * amplitude + offset.y;
+        vertices[arrayPosition + 1] = Math.max(seaLevel, matrix[x][y]) * amplitude + offset.y;
         vertices[arrayPosition + 2] = (y + 0) - (matrix[0].length/2.0) + offset.z;
   
         vertices[arrayPosition + 3] = (x + 0) - (matrix.length/2.0) + 0.5 + offset.x;
-        vertices[arrayPosition + 4] = matrix[x][y + 1] * amplitude + offset.y;
+        vertices[arrayPosition + 4] = Math.max(seaLevel, matrix[x][y + 1]) * amplitude + offset.y;
         vertices[arrayPosition + 5] = (y + 1) - (matrix[0].length/2.0) + offset.z;
   
         vertices[arrayPosition + 6] = (x + 1) - (matrix.length/2.0) + 0.5 + offset.x;
-        vertices[arrayPosition + 7] = matrix[x + 1][y + 1] * amplitude + offset.y;
+        vertices[arrayPosition + 7] = Math.max(seaLevel, matrix[x + 1][y + 1]) * amplitude + offset.y;
         vertices[arrayPosition + 8] = (y + 1) - (matrix[0].length/2.0) + offset.z;
 
-        tempRGB = MapGeneration.getColorFromHeight((matrix[x][y] + matrix[x + 1][y + 1] + matrix[x][y + 1])/3);
+        tempRGB = MapGeneration.getColorFromHeight(matrix[x][y] <= seaLevel ? 0 : matrix[x][y]);
         color.setRGB(tempRGB[0] / 255, tempRGB[1] / 255, tempRGB[2] / 255);
-
         colors[arrayPosition + 0] = color.r;
         colors[arrayPosition + 1] = color.g;
         colors[arrayPosition + 2] = color.b;
+
+        tempRGB = MapGeneration.getColorFromHeight(matrix[x][y + 1] <= seaLevel ? 0 : matrix[x][y + 1]);
+        color.setRGB(tempRGB[0] / 255, tempRGB[1] / 255, tempRGB[2] / 255);
         colors[arrayPosition + 3] = color.r;
         colors[arrayPosition + 4] = color.g;
         colors[arrayPosition + 5] = color.b;
+
+        tempRGB = MapGeneration.getColorFromHeight(matrix[x + 1][y + 1] <= seaLevel ? 0 : matrix[x + 1][y + 1]);
+        color.setRGB(tempRGB[0] / 255, tempRGB[1] / 255, tempRGB[2] / 255);
         colors[arrayPosition + 6] = color.r;
         colors[arrayPosition + 7] = color.g;
         colors[arrayPosition + 8] = color.b;
   
         // Triangle 2
         vertices[arrayPosition + 9] = (x + 0) - (matrix.length/2.0) + 0.5 + offset.x;
-        vertices[arrayPosition + 10] = matrix[x][y] * amplitude + offset.y;
+        vertices[arrayPosition + 10] = Math.max(seaLevel, matrix[x][y]) * amplitude + offset.y;
         vertices[arrayPosition + 11] = (y + 0) - (matrix[0].length/2.0) + offset.z;
   
         vertices[arrayPosition + 12] = (x + 1) - (matrix.length/2.0) + 0.5 + offset.x;
-        vertices[arrayPosition + 13] = matrix[x + 1][y + 1] * amplitude + offset.y;
+        vertices[arrayPosition + 13] = Math.max(seaLevel, matrix[x + 1][y + 1]) * amplitude + offset.y;
         vertices[arrayPosition + 14] = (y + 1) - (matrix[0].length/2) + offset.z;
   
         vertices[arrayPosition + 15] = (x + 1) - (matrix.length/2.0) + 0.5 + offset.x;
-        vertices[arrayPosition + 16] = matrix[x + 1][y] * amplitude + offset.y;
+        vertices[arrayPosition + 16] = Math.max(seaLevel, matrix[x + 1][y]) * amplitude + offset.y;
         vertices[arrayPosition + 17] = (y + 0) - (matrix[0].length/2) + offset.z;
 
-        tempRGB = MapGeneration.getColorFromHeight((matrix[x][y] + matrix[x + 1][y + 1] + matrix[x][y + 1])/3);
+        tempRGB = MapGeneration.getColorFromHeight(matrix[x][y] <= seaLevel ? 0 : matrix[x][y]);
         color.setRGB(tempRGB[0] / 255, tempRGB[1] / 255, tempRGB[2] / 255);
-
         colors[arrayPosition + 9] = color.r;
         colors[arrayPosition + 10] = color.g;
         colors[arrayPosition + 11] = color.b;
+
+        tempRGB = MapGeneration.getColorFromHeight(matrix[x + 1][y + 1] <= seaLevel ? 0 : matrix[x + 1][y + 1]);
+        color.setRGB(tempRGB[0] / 255, tempRGB[1] / 255, tempRGB[2] / 255);
         colors[arrayPosition + 12] = color.r;
         colors[arrayPosition + 13] = color.g;
         colors[arrayPosition + 14] = color.b;
+
+        tempRGB = MapGeneration.getColorFromHeight(matrix[x + 1][y] <= seaLevel ? 0 : matrix[x + 1][y]);
+        color.setRGB(tempRGB[0] / 255, tempRGB[1] / 255, tempRGB[2] / 255);
         colors[arrayPosition + 15] = color.r;
         colors[arrayPosition + 16] = color.g;
         colors[arrayPosition + 17] = color.b;
@@ -149,10 +160,8 @@ export default class DrawThree {
   }
 
   onDocumentKeyPress(event) {
-    let speed = 1;
-    let rotationSpeed = 0.005;
-    let positionDelta = 10;
-    let rotationDelta = 0.1;
+    let speed = 0.25;
+    let rotationSpeed = 0.01;
 
     let lookAtVector = new THREE.Vector3(0,0, -1);
     let lookUpVector = new THREE.Vector3(0,-1, 0);
@@ -201,34 +210,25 @@ export default class DrawThree {
       //Up
       else if ( keyCode == 38 )
       {
-        this.camera.rotation.x -= lookSidewaysVector.x * rotationSpeed;
-        this.camera.rotation.y -= lookSidewaysVector.y * rotationSpeed;
-        this.camera.rotation.z -= lookSidewaysVector.z * rotationSpeed;
+        this.camera.rotateOnWorldAxis(lookSidewaysVector, -rotationSpeed);
       }
       //Down
       else if ( keyCode == 40 )
       {
-        this.camera.rotation.x += lookSidewaysVector.x * rotationSpeed;
-        this.camera.rotation.y += lookSidewaysVector.y * rotationSpeed;
-        this.camera.rotation.z += lookSidewaysVector.z * rotationSpeed;
+        this.camera.rotateOnWorldAxis(lookSidewaysVector, rotationSpeed);
       }
       //Left
       else if ( keyCode == 37 )
       {
-        //this.camera.rotation.y += rotationDelta;
-        this.camera.rotation.x -= lookUpVector.x * rotationSpeed;
-        this.camera.rotation.y -= lookUpVector.y * rotationSpeed;
-        this.camera.rotation.z -= lookUpVector.z * rotationSpeed;
+        this.camera.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), rotationSpeed);
       }
       //Right
       else if ( keyCode == 39 )
       {
-        //this.camera.rotation.y -= rotationDelta;
-        this.camera.rotation.x += lookUpVector.x * rotationSpeed;
-        this.camera.rotation.y += lookUpVector.y * rotationSpeed;
-        this.camera.rotation.z += lookUpVector.z * rotationSpeed;
+        this.camera.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), -rotationSpeed);
       }
     }
+
 
     window.requestAnimationFrame(() => {this.animate()});
     if (this.keyDowns.length > 0) {

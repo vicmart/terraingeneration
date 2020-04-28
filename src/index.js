@@ -28,7 +28,7 @@ window.onload = function() {
 			drawTwo.updateImage(map, Array(width * height).fill(0));
 
 			let drawThree = new DrawThree(width, height);
-			drawThree.renderMap(map, width, height, 35);
+			drawThree.renderMap(map, width, height, 60);
 
 	}
 

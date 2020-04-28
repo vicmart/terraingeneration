@@ -36,11 +36,12 @@ export default class DrawTwo {
 
         let color = MapGeneration.getColorFromHeight(height);
 
+
 				// Set the pixel data
 				this.imagedata.data[pixelIndex] = color[0];     // Red
 				this.imagedata.data[pixelIndex+1] = color[1]; // Green
 				this.imagedata.data[pixelIndex+2] = color[2];  // Blue
-				this.imagedata.data[pixelIndex+3] = 255;   // Alpha
+				this.imagedata.data[pixelIndex+3] = heightMap[pixelIndex / 4] < 0.2 ? 0 : 255;   // Alpha
 			}
 		}
   }
