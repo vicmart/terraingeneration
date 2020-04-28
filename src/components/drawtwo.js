@@ -70,7 +70,7 @@ export default class DrawTwo {
   }
 
   updatePlayer(playerX, playerY) {
-    this.updateHeightmap(playerX + this.width/2, playerY + this.height/2);
-    this.context.putImageData(this.imagedata, 0, 0);
+    //this.updateHeightmap(playerX + this.width/2, playerY + this.height/2);
+    //this.context.putImageData(this.imagedata, 0, 0);
   }
 }
