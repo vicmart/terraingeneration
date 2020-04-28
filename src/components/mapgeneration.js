@@ -12,6 +12,7 @@ export default class MapGeneration {
     let heightMap = this.generatePerlinNoise();
     heightMap = this.normalizeEdges(heightMap);
     heightMap = this.blurMap(heightMap);
+    heightMap = this.amplifyMap(heightMap);
 
     return heightMap;
   }
@@ -24,7 +25,7 @@ export default class MapGeneration {
     // Normalize for distance from center
 		for (let x = 0; x < this.width; x++) {
 			for (let y = 0; y < this.height; y++) {
-				let distanceFromCenter = 0.25 - Math.sqrt(Math.pow((this.width/2) - x, 2) + Math.pow((this.height/2) - y, 2)) / (Math.min(this.height/2, this.width/2));
+				let distanceFromCenter = 0.5 - Math.sqrt(Math.pow((this.width/2) - x, 2) + Math.pow((this.height/2) - y, 2)) / Math.sqrt(Math.pow(this.height/2, 2) + Math.pow(this.width/2, 2));
 				heightMap[(y * this.width) + x] = Math.max(0, Math.min(1, heightMap[(y * this.width) + x] + distanceFromCenter));
 			}
     }
@@ -55,10 +56,26 @@ export default class MapGeneration {
 		return newHeightMap;
   }
   
+  amplifyMap(heightMap) {
+    for (let x = 0; x < this.width; x++) {
+			for (let y = 0; y < this.height; y++) {
+        heightMap[(y * this.width) + x] = this.easeFunc(heightMap[(y * this.width) + x]);
+			}
+    }
+    
+    return heightMap;
+  }
+
+  easeFunc(x) {
+    return x * x * x;
+  }
+  
   static getColorFromHeight(height) {
-    let gradient = [{pos: 0, color: [30,144,255]}, 
-                    {pos: 0.25, color: [242,209,107]}, 
-                    {pos: 0.35, color: [76,186,23]}, 
+    let gradient = [{pos: 0, color: [30,144,255]},
+                    {pos: 0.16, color: [30,144,255]}, 
+                    {pos: 0.2, color: [242,209,107]}, 
+                    {pos: 0.3, color: [76,186,23]}, 
+                    {pos: 0.6, color: [76,186,23]}, 
                     {pos: 0.7, color: [100,100,100]}, 
                     {pos: 0.9, color: [255,255,255]}, 
                     {pos: 1, color: [255,255,255]}];
@@ -79,5 +96,5 @@ export default class MapGeneration {
 		let blue = (color1[2] * (1 - (height - pos1)/(pos2 - pos1))) + (color2[2] * (1 - (pos2 - height)/(pos2 - pos1)));
 
 		return [red, green, blue];
-	}
+  }
 }
