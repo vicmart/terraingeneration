@@ -10,7 +10,7 @@ export default class PathFinding {
     return this.traverseMap(startingX, startingY, 0, Math.PI * 2, heightMap, Array(this.width * this.height).fill(0), 1, 15);
   }
 
-  findNextPixels(x, y, angle, iteration, path) {
+  static findNextPixels(x, y, angle, iteration, path) {
 		let pi = Math.PI;
 
 		while(angle > pi * 2) {
@@ -48,10 +48,12 @@ export default class PathFinding {
 			i = xi;
 		} else {
 			i = Math.min(xi, yi);
-		}
+    }
+    
+    console.log(angle);
 
-		x += (dx * i) + (dx * i * 0.001); //TODO figure out a better way than overshooting to a lower coordinate
-		y += (dy * i) + (dy * i * 0.001);
+		x += (dx * i) + 0.001; //(dx * i + 0.001); //TODO figure out a better way than overshooting to a lower coordinate
+		y += (dy * i) + 0.001; //(dy * i + 0.001);
 
 		iteration--;
 
@@ -62,7 +64,7 @@ export default class PathFinding {
 		}
 
 		if (iteration > 0) {
-			return findNextPixels(x, y, angle, iteration, path);
+			return this.findNextPixels(x, y, angle, iteration, path);
 		} else {
 			return path;
 		}
@@ -75,7 +77,7 @@ export default class PathFinding {
 		visitedPixels[(y * this.width) + x] = 1;
 		
 		for (let alpha = angleStart; alpha < angleEnd; alpha += (angleEnd - angleStart) / 16) {
-			let pixelPath = findNextPixels(Math.floor(x) + 0.5, Math.floor(y) + 0.5, alpha, stepLength);
+			let pixelPath = this.findNextPixels(Math.floor(x) + 0.5, Math.floor(y) + 0.5, alpha, stepLength);
 			let pathTotalHeight = 0;
 			let intersectsWithVisited = 0;
 

@@ -267,8 +267,9 @@ export default class DrawThree {
   }
 
   onDocumentKeyPress(event) {
-    let speed = 0.25;
-    let rotationSpeed = 0.01;
+    let speed = 0.1;
+    let rotationSpeedVertical = 0.01;
+    let rotationSpeedHorizontal = 0.02;
 
     let lookAtVector = new THREE.Vector3(0,0, -1);
     let lookUpVector = new THREE.Vector3(0,-1, 0);
@@ -317,26 +318,26 @@ export default class DrawThree {
       //Up
       else if ( keyCode == 38 )
       {
-        this.camera.rotateOnWorldAxis(lookSidewaysVector, -rotationSpeed);
+        this.camera.rotateOnWorldAxis(lookSidewaysVector, -rotationSpeedVertical);
       }
       //Down
       else if ( keyCode == 40 )
       {
-        this.camera.rotateOnWorldAxis(lookSidewaysVector, rotationSpeed);
+        this.camera.rotateOnWorldAxis(lookSidewaysVector, rotationSpeedVertical);
       }
       //Left
       else if ( keyCode == 37 )
       {
-        this.camera.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), rotationSpeed);
+        this.camera.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), rotationSpeedHorizontal);
       }
       //Right
       else if ( keyCode == 39 )
       {
-        this.camera.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), -rotationSpeed);
+        this.camera.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), -rotationSpeedHorizontal);
       }
     }
 
-    this.drawTwo.updatePlayer(parseInt(this.camera.position.x), parseInt(this.camera.position.z));
+    this.drawTwo.updatePlayer(parseInt(this.camera.position.x), parseInt(this.camera.position.z), lookAtVector.x, lookAtVector.z);
 
     window.requestAnimationFrame(() => {this.animate()});
     if (this.keyDowns.length > 0) {
