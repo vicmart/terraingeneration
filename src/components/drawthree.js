@@ -32,7 +32,7 @@ export default class DrawThree {
     this.renderer.setSize( this.windowWidth, this.windowHeight );
     document.body.appendChild( this.renderer.domElement );
 
-    this.startTime = Date.now() + 40000;
+    this.startTime = Date.now() + 20000;
     this.addLights();
 
     this.stats = new Stats();
@@ -48,7 +48,7 @@ export default class DrawThree {
     this.sun.position.set( 0, 1000, 0 );
     this.scene.add(this.sun);
 
-    let ambientLight = new THREE.AmbientLight( 0x404040, 0.5 );
+    let ambientLight = new THREE.AmbientLight( 0x404040, 0.25 );
     this.scene.add(ambientLight);
   }
 
@@ -80,20 +80,26 @@ export default class DrawThree {
     this.scene.add( mesh );
 
     let seaGeometry = new THREE.BufferGeometry();
-    let [seaVertices, seaColors] = this.seaGeometryFromVerticies(input, amplitude, new THREE.Vector3(0, 0, 0), this.mapScale);
+    let [seaVertices, seaColors] = this.seaGeometryFromVerticies(input, amplitude, new THREE.Vector3(0, 0, 0), this.mapScale, 1);
 
     seaGeometry.setAttribute( 'position', new THREE.BufferAttribute( seaVertices, 3 ) );
     seaGeometry.setAttribute( 'color', new THREE.BufferAttribute( seaColors, 3 ) );
     seaGeometry.computeVertexNormals();
     seaGeometry.dynamic = true;
     let seaMaterial = new THREE.MeshPhongMaterial( { vertexColors: true, transparent: true, shininess: 100 } );
-    seaMaterial.opacity = 0.7;
+    seaMaterial.opacity = 0.75;
 
     this.seaMesh = new THREE.Mesh( seaGeometry, seaMaterial );
     this.scene.add( this.seaMesh );
 
+    let cubeGeometry = new THREE.BoxGeometry( 1, 1, 1 );
+    let cubeMaterial = new THREE.MeshLambertMaterial( {color: 0xff0000} );
+    this.player = new THREE.Mesh( cubeGeometry, cubeMaterial );
+    this.player.position.y = 15;
+    this.player.position.z = 400;
+    this.scene.add( this.player );
+
     window.requestAnimationFrame(() => {this.animate()});
-    window.requestAnimationFrame(() => {this.animateSea(input, amplitude, new THREE.Vector3(0, 0, 0), 0.5)});
   }
 
   animate() {
@@ -104,7 +110,7 @@ export default class DrawThree {
 
     this.stats.begin();
 
-    let radians = -1 * (Date.now() - this.startTime) / 40000;
+    let radians = -1 * (Date.now() - this.startTime) / 20000;
     //Shortened night
     //if (Math.sin(radians) < -0.92 && Math.cos(radians) > 0) this.startTime = Date.now() - ((Math.PI * (11/8)) * -10000);
     this.sun.position.x = Math.cos(radians) * 1000;
@@ -112,6 +118,8 @@ export default class DrawThree {
     this.sun.color.setHex(this.getSunColor(Math.sin(radians)));
     this.scene.fog.color.setHex(this.getFogColor(Math.sin(radians)));
     this.scene.background.setHex(this.getBGColor(Math.sin(radians)));
+
+    this.animateSea();
 
     this.renderer.render( this.scene, this.camera );
 
@@ -127,16 +135,20 @@ export default class DrawThree {
   getFogColor(posY) {
     if (posY > 0) {
       return this.getWeightedColor(posY, '#87ceeb', '#ff9608');
+    } else if (posY > -0.4) {
+      return this.getWeightedColor(posY * 2.5, '#092936', '#ff9608');
     } else {
-      return this.getWeightedColor(posY * 1.5, '#000000', '#ff9608');
+      return this.getWeightedColor((posY + 0.4) * 1.5, '#000000', '#092936');
     }
   }
 
   getBGColor(posY) {
     if (posY > 0) {
-      return this.getWeightedColor(posY, '#87ceeb', '#ff9608');
+      return this.getWeightedColor(posY, '#87ceeb', '#bb6b00');
+    } else if (posY > -0.4) {
+      return this.getWeightedColor(posY * 2.5, '#092936', '#bb6b00');
     } else {
-      return this.getWeightedColor(posY * 1.5, '#000000', '#ff9608');
+      return this.getWeightedColor((posY + 0.4) * 1.5, '#000000', '#092936');
     }
   }
 
@@ -234,7 +246,7 @@ export default class DrawThree {
 	  return [vertices, colors];
   }
 
-  seaGeometryFromVerticies(matrix, amplitude, offset, scale = 1) {
+  seaGeometryFromVerticies(matrix, amplitude, offset, scale = 1, waveHeight = 0.5) {
     let color = new THREE.Color();
     let tempRGB = [30,144,255];
     let factor = 4;
@@ -243,6 +255,14 @@ export default class DrawThree {
     let vertices = new Float32Array(width * height * 18);
     let colors = new Float32Array(width * height * 18);
     scale = scale * factor;
+
+    this.landWidth = matrix.length;
+    this.landHeight = matrix[0].length;
+
+    this.seaAmplitude = amplitude;
+    this.seaOffset = offset;
+    this.seaScale = scale;
+    this.waveHeight = waveHeight;
     
     for (let y = 0; y < height - 1; y++) {
       for (let x = 0; x < width - 1; x++) {
@@ -316,51 +336,51 @@ export default class DrawThree {
 	  return [vertices, colors];
   }
 
-  animateSea(matrix, amplitude, offset, waveHeight = 1) {
+  animateSea() {
     let seaVerticies = this.seaMesh.geometry.attributes.position.array;
     let timeOffset = (Date.now() - this.startTime)/1000;
     let waveLength = 2;
     let factor = 4;
 
-    let playerX = parseInt((this.camera.position.x + (matrix.length/2 * this.mapScale))/(this.mapScale));
-    let playerY = parseInt((this.camera.position.z + (matrix.length/2 * this.mapScale))/(this.mapScale));
-    let yMin = parseInt(Math.max(0, playerY - 25)/factor);
-    let yMax = parseInt(Math.min(matrix[0].length - 1, playerY + 25)/factor);
-    let xMin = parseInt(Math.max(0, playerX - 25)/factor);
-    let xMax = parseInt(Math.min(matrix.length - 1, playerX + 25)/factor);
-
-    let width = matrix.length / factor;
-    let height = matrix[0].length / factor;
+    let playerX = parseInt((this.camera.position.x + (this.landWidth/2 * this.mapScale))/(this.mapScale));
+    let playerY = parseInt((this.camera.position.z + (this.landHeight/2 * this.mapScale))/(this.mapScale));
+    let yMin = parseInt(Math.max(0, playerY - 200)/factor);
+    let yMax = parseInt(Math.min(this.landHeight, playerY + 200)/factor) - 1;
+    let xMin = parseInt(Math.max(0, playerX - 200)/factor);
+    let xMax = parseInt(Math.min(this.landWidth, playerX + 200)/factor) - 1;
 
     let computedValues = [];
-    let precomputed = this.seaLevel * amplitude + offset.y;
+    let precomputed = this.seaLevel * this.seaAmplitude + this.seaOffset.y;
+    
+    let width = this.landWidth/factor;
+    let height = this.landHeight/factor;
 
     for (let y = 0; y < height - 1; y++) {
       for (let x = 0; x < width - 1; x++) {
 
         let arrayPosition = (x * 18) + (y * width * 18);
         if (seaVerticies[arrayPosition + 1]) {
-          if (!computedValues[x + y]) computedValues[x + y] = precomputed + (Math.sin((timeOffset + x + y)/waveLength) * waveHeight);
+          if (!computedValues[x + y]) computedValues[x + y] = precomputed + (Math.sin((timeOffset + x + y)/waveLength) * this.waveHeight);
           seaVerticies[arrayPosition + 1] = computedValues[x + y];
         }
         if (seaVerticies[arrayPosition + 4]) {
-          if (!computedValues[x + y + 1]) computedValues[x + y + 1] = precomputed + (Math.sin((timeOffset + x + y + 1)/waveLength) * waveHeight);
+          if (!computedValues[x + y + 1]) computedValues[x + y + 1] = precomputed + (Math.sin((timeOffset + x + y + 1)/waveLength) * this.waveHeight);
           seaVerticies[arrayPosition + 4] = computedValues[x + y + 1];
         }
         if (seaVerticies[arrayPosition + 7]) {
-          if (!computedValues[x + y + 2]) computedValues[x + y + 2] = precomputed + (Math.sin((timeOffset + x + y + 2)/waveLength) * waveHeight);
+          if (!computedValues[x + y + 2]) computedValues[x + y + 2] = precomputed + (Math.sin((timeOffset + x + y + 2)/waveLength) * this.waveHeight);
           seaVerticies[arrayPosition + 7] = computedValues[x + y + 2];
         }
         if (seaVerticies[arrayPosition + 10]) {
-          if (!computedValues[x + y]) computedValues[x + y] = precomputed + (Math.sin((timeOffset + x + y)/waveLength) * waveHeight);
+          if (!computedValues[x + y]) computedValues[x + y] = precomputed + (Math.sin((timeOffset + x + y)/waveLength) * this.waveHeight);
           seaVerticies[arrayPosition + 10] = computedValues[x + y];
         }
         if (seaVerticies[arrayPosition + 13]) {
-          if (!computedValues[x + y + 2]) computedValues[x + y + 2] = precomputed + (Math.sin((timeOffset + x + y + 2)/waveLength) * waveHeight);
+          if (!computedValues[x + y + 2]) computedValues[x + y + 2] = precomputed + (Math.sin((timeOffset + x + y + 2)/waveLength) * this.waveHeight);
           seaVerticies[arrayPosition + 13] = computedValues[x + y + 2];
         }
         if (seaVerticies[arrayPosition + 16]) {
-          if (!computedValues[x + y + 1]) computedValues[x + y + 1] = precomputed + (Math.sin((timeOffset + x + y + 1)/waveLength) * waveHeight);
+          if (!computedValues[x + y + 1]) computedValues[x + y + 1] = precomputed + (Math.sin((timeOffset + x + y + 1)/waveLength) * this.waveHeight);
           seaVerticies[arrayPosition + 16] = computedValues[x + y + 1];
         }
       }
@@ -370,8 +390,6 @@ export default class DrawThree {
 
     if (this.seaMeshNormals === 0) this.seaMesh.geometry.computeVertexNormals();
     this.seaMesh.geometry.attributes.position.needsUpdate = true;
-
-    window.requestAnimationFrame(() => {this.animateSea(matrix, amplitude, offset, waveHeight)});
   }
 
   onDocumentKeyPressDown(event) {
