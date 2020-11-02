@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import MapGeneration from "./mapgeneration.js";
+import Stats from "stats.js";
 
 export default class DrawThree {
   constructor(drawTwo) {
@@ -32,6 +33,10 @@ export default class DrawThree {
 
     this.addLights();
 
+    this.stats = new Stats();
+    this.stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
+    document.body.appendChild( this.stats.dom );
+
     document.addEventListener('keydown', (e) => { this.onDocumentKeyPressDown(e) });
     document.addEventListener('keyup', (e) => { this.onDocumentKeyPressUp(e) });
   }
@@ -45,7 +50,7 @@ export default class DrawThree {
     this.scene.add(ambientLight);
   }
 
-  renderMap(heightMap, width, height, amplitude) {
+  renderMap(heightMap, width, height, amplitude, scale) {
     let input = new Array(width);
 
     for (let i = 0; i < width; i++) {
@@ -55,8 +60,11 @@ export default class DrawThree {
       }
     }
 
+    this.mapScale = scale;
+    this.drawTwo.updatePlayer(parseInt(this.camera.position.x / this.mapScale), parseInt(this.camera.position.z / this.mapScale));
+
     let landGeometry = new THREE.BufferGeometry();
-    let [vertices, colors] = this.geometryFromVerticies(input, amplitude, new THREE.Vector3(0, 0, 0));
+    let [vertices, colors] = this.geometryFromVerticies(input, amplitude, new THREE.Vector3(0, 0, 0), this.mapScale);
 
     landGeometry.setAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) );
     landGeometry.setAttribute( 'color', new THREE.BufferAttribute( colors, 3 ) );
@@ -66,7 +74,7 @@ export default class DrawThree {
     let mesh = new THREE.Mesh( landGeometry, material );
     this.scene.add( mesh );
 
-    let seaGeometry = new THREE.BufferGeometry();
+    /**let seaGeometry = new THREE.BufferGeometry();
     let [seaVertices, seaColors] = this.seaGeometryFromVerticies(input, amplitude, new THREE.Vector3(0, 0, 0));
 
     seaGeometry.setAttribute( 'position', new THREE.BufferAttribute( seaVertices, 3 ) );
@@ -75,7 +83,7 @@ export default class DrawThree {
     seaGeometry.dynamic = true;
 
     let seaMesh = new THREE.Mesh( seaGeometry, material );
-    //this.scene.add( seaMesh );
+    this.scene.add( seaMesh );**/
 
     this.animate();
   }
@@ -92,10 +100,29 @@ export default class DrawThree {
 
     //this.customGeometry.computeVertexNormals();
 
+    this.stats.begin();
+
+    /**
+    let speed = 0.1;
+
+    let lookAtVector = new THREE.Vector3(0,0, -1);
+    let lookUpVector = new THREE.Vector3(0,-1, 0);
+    lookAtVector.applyQuaternion(this.camera.quaternion);
+    lookUpVector.applyQuaternion(this.camera.quaternion);
+    let lookSidewaysVector = new THREE.Vector3().crossVectors(lookAtVector, lookUpVector); 
+
+    this.camera.position.x += lookAtVector.x * speed;
+    this.camera.position.y += lookAtVector.y * speed;
+    this.camera.position.z += lookAtVector.z * speed;
+
+    this.drawTwo.updatePlayer(parseInt(this.camera.position.x), parseInt(this.camera.position.z), lookAtVector.x, lookAtVector.z); */
+
     this.renderer.render( this.scene, this.camera );
+
+    this.stats.end();
   };
 
-  geometryFromVerticies(matrix, amplitude, offset) {
+  geometryFromVerticies(matrix, amplitude, offset, scale = 1) {
     let color = new THREE.Color();
     let tempRGB = [];
     let tempDivider = 1;
@@ -107,17 +134,17 @@ export default class DrawThree {
         let arrayPosition = (x * 18) + (y * matrix.length * 18);
         //if (!(matrix[x][y] < this.seaLevel && matrix[x + 1][y] < this.seaLevel && matrix[x][y + 1] < this.seaLevel && matrix[x + 1][y + 1] < this.seaLevel)) {
           // Triangle 1
-          vertices[arrayPosition + 0] = (x + 0) - (matrix.length/2.0) + 0.5 + offset.x;
+          vertices[arrayPosition + 0] = ((x + 0) - (matrix.length/2.0) + 0.5 + offset.x) * scale;
           vertices[arrayPosition + 1] = Math.max(this.seaLevel, matrix[x][y]) * amplitude + offset.y;
-          vertices[arrayPosition + 2] = (y + 0) - (matrix[0].length/2.0) + offset.z;
+          vertices[arrayPosition + 2] = ((y + 0) - (matrix[0].length/2.0) + offset.z) * scale;
     
-          vertices[arrayPosition + 3] = (x + 0) - (matrix.length/2.0) + 0.5 + offset.x;
+          vertices[arrayPosition + 3] = ((x + 0) - (matrix.length/2.0) + 0.5 + offset.x) * scale;
           vertices[arrayPosition + 4] = Math.max(this.seaLevel, matrix[x][y + 1]) * amplitude + offset.y;
-          vertices[arrayPosition + 5] = (y + 1) - (matrix[0].length/2.0) + offset.z;
+          vertices[arrayPosition + 5] = ((y + 1) - (matrix[0].length/2.0) + offset.z) * scale;
     
-          vertices[arrayPosition + 6] = (x + 1) - (matrix.length/2.0) + 0.5 + offset.x;
+          vertices[arrayPosition + 6] = ((x + 1) - (matrix.length/2.0) + 0.5 + offset.x) * scale;
           vertices[arrayPosition + 7] = Math.max(this.seaLevel, matrix[x + 1][y + 1]) * amplitude + offset.y;
-          vertices[arrayPosition + 8] = (y + 1) - (matrix[0].length/2.0) + offset.z;
+          vertices[arrayPosition + 8] = ((y + 1) - (matrix[0].length/2.0) + offset.z) * scale;
 
           tempRGB = MapGeneration.getColorFromHeight(matrix[x][y]/tempDivider);
           color.setRGB(tempRGB[0] / 255, tempRGB[1] / 255, tempRGB[2] / 255);
@@ -138,17 +165,17 @@ export default class DrawThree {
           colors[arrayPosition + 8] = color.b;
     
           // Triangle 2
-          vertices[arrayPosition + 9] = (x + 0) - (matrix.length/2.0) + 0.5 + offset.x;
+          vertices[arrayPosition + 9] = ((x + 0) - (matrix.length/2.0) + 0.5 + offset.x) * scale;
           vertices[arrayPosition + 10] = Math.max(this.seaLevel, matrix[x][y]) * amplitude + offset.y;
-          vertices[arrayPosition + 11] = (y + 0) - (matrix[0].length/2.0) + offset.z;
+          vertices[arrayPosition + 11] = ((y + 0) - (matrix[0].length/2.0) + offset.z) * scale;
     
-          vertices[arrayPosition + 12] = (x + 1) - (matrix.length/2.0) + 0.5 + offset.x;
+          vertices[arrayPosition + 12] = ((x + 1) - (matrix.length/2.0) + 0.5 + offset.x) * scale;
           vertices[arrayPosition + 13] = Math.max(this.seaLevel, matrix[x + 1][y + 1]) * amplitude + offset.y;
-          vertices[arrayPosition + 14] = (y + 1) - (matrix[0].length/2) + offset.z;
+          vertices[arrayPosition + 14] = ((y + 1) - (matrix[0].length/2) + offset.z) * scale;
     
-          vertices[arrayPosition + 15] = (x + 1) - (matrix.length/2.0) + 0.5 + offset.x;
+          vertices[arrayPosition + 15] = ((x + 1) - (matrix.length/2.0) + 0.5 + offset.x) * scale;
           vertices[arrayPosition + 16] = Math.max(this.seaLevel, matrix[x + 1][y]) * amplitude + offset.y;
-          vertices[arrayPosition + 17] = (y + 0) - (matrix[0].length/2) + offset.z;
+          vertices[arrayPosition + 17] = ((y + 0) - (matrix[0].length/2) + offset.z) * scale;
 
           tempRGB = MapGeneration.getColorFromHeight(matrix[x][y]/tempDivider);
           color.setRGB(tempRGB[0] / 255, tempRGB[1] / 255, tempRGB[2] / 255);
@@ -337,7 +364,7 @@ export default class DrawThree {
       }
     }
 
-    this.drawTwo.updatePlayer(parseInt(this.camera.position.x), parseInt(this.camera.position.z), lookAtVector.x, lookAtVector.z);
+    this.drawTwo.updatePlayer(parseInt(this.camera.position.x / this.mapScale), parseInt(this.camera.position.z / this.mapScale), lookAtVector.x, lookAtVector.z);
 
     window.requestAnimationFrame(() => {this.animate()});
     if (this.keyDowns.length > 0) {
