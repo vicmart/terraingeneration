@@ -37,7 +37,7 @@ export default class MapGeneration {
 		let newHeightMap = Array(this.width * this.height).fill(0);
 
 		// Blur
-		let range = 7;
+		let range = 3;
 		for (let x = 0; x < this.width; x++) {
 			for (let y = 0; y < this.height; y++) {
 				let totalHeight = 0;

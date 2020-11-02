@@ -31,6 +31,7 @@ export default class DrawThree {
     this.renderer.setSize( this.windowWidth, this.windowHeight );
     document.body.appendChild( this.renderer.domElement );
 
+    this.startTime = Date.now();
     this.addLights();
 
     this.stats = new Stats();
@@ -42,9 +43,9 @@ export default class DrawThree {
   }
 
   addLights() {
-    let light = new THREE.PointLight( 0xffffe0, 1, 0 );
-    light.position.set( 0, 1000, 0 );
-    this.scene.add(light);
+    this.sun = new THREE.PointLight( 0xffffe0, 1, 0 );
+    this.sun.position.set( 0, 1000, 0 );
+    this.scene.add(this.sun);
 
     let ambientLight = new THREE.AmbientLight( 0x404040, 0.5 );
     this.scene.add(ambientLight);
@@ -85,7 +86,7 @@ export default class DrawThree {
     let seaMesh = new THREE.Mesh( seaGeometry, material );
     this.scene.add( seaMesh );**/
 
-    this.animate();
+    window.requestAnimationFrame(() => {this.animate()});
   }
 
   animateSea() {    
@@ -101,6 +102,15 @@ export default class DrawThree {
     //this.customGeometry.computeVertexNormals();
 
     this.stats.begin();
+
+    let radians = -1 * (Date.now() - this.startTime) / 10000;
+    //Shortened night
+    //if (Math.sin(radians) < -0.92 && Math.cos(radians) > 0) this.startTime = Date.now() - ((Math.PI * (11/8)) * -10000);
+    this.sun.position.x = Math.cos(radians) * 1000;
+    this.sun.position.y = Math.sin(radians) * 1000;
+    this.sun.color.setHex(this.getSunColor(Math.sin(radians)));
+    this.scene.fog.color.setHex(this.getFogColor(Math.sin(radians)));
+    this.scene.background.setHex(this.getBGColor(Math.sin(radians)));
 
     /**
     let speed = 0.1;
@@ -120,7 +130,43 @@ export default class DrawThree {
     this.renderer.render( this.scene, this.camera );
 
     this.stats.end();
-  };
+
+    window.requestAnimationFrame(() => {this.animate()});
+  }
+
+  getSunColor(posY) {
+    return this.getWeightedColor(posY, '#ffffe0', '#ff9608');
+  }
+
+  getFogColor(posY) {
+    if (posY > 0) {
+      return this.getWeightedColor(posY, '#87ceeb', '#ff9608');
+    } else {
+      return this.getWeightedColor(posY, '#000000', '#ff9608');
+    }
+  }
+
+  getBGColor(posY) {
+    if (posY > 0) {
+      return this.getWeightedColor(posY, '#87ceeb', '#ff9608');
+    } else {
+      return this.getWeightedColor(posY, '#000000', '#ff9608');
+    }
+  }
+
+  getWeightedColor(y, colorMax, colorMin) {
+    let colorMaxRGB = this.hexToRgb(colorMax);
+    let colorMinRGB = this.hexToRgb(colorMin);
+    y = Math.abs(y);
+
+    let finalRGB = {
+      r: parseInt((y * colorMaxRGB.r) + ((1 - y) * colorMinRGB.r)), 
+      g: parseInt((y * colorMaxRGB.g) + ((1 - y) * colorMinRGB.g)), 
+      b: parseInt((y * colorMaxRGB.b) + ((1 - y) * colorMinRGB.b))
+    }; 
+
+    return this.rgbToHex(finalRGB);
+  }
 
   geometryFromVerticies(matrix, amplitude, offset, scale = 1) {
     let color = new THREE.Color();
@@ -366,9 +412,26 @@ export default class DrawThree {
 
     this.drawTwo.updatePlayer(parseInt(this.camera.position.x / this.mapScale), parseInt(this.camera.position.z / this.mapScale), lookAtVector.x, lookAtVector.z);
 
-    window.requestAnimationFrame(() => {this.animate()});
     if (this.keyDowns.length > 0) {
       window.requestAnimationFrame(() => {this.onDocumentKeyPress()});
     }
+  }
+
+  componentToHex(c) {
+    var hex = c.toString(16);
+    return hex.length == 1 ? "0" + hex : hex;
+  }
+  
+  rgbToHex(rgb) {
+    return "0x" + this.componentToHex(rgb.r) + this.componentToHex(rgb.g) + this.componentToHex(rgb.b);
+  }
+
+  hexToRgb(hex) {
+    var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
   }
 }
