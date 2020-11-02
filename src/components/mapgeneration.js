@@ -71,8 +71,8 @@ export default class MapGeneration {
   }
   
   static getColorFromHeight(height) {
-    let gradient = [{pos: 0, color: [30,144,255]},
-                    {pos: 0.16, color: [30,144,255]}, 
+    let gradient = [{pos: 0, color: [242,209,107]}, //{pos: 0, color: [30,144,255]},
+                    //{pos: 0.16, color: [30,144,255]}, 
                     {pos: 0.2, color: [242,209,107]}, 
                     {pos: 0.3, color: [76,186,23]}, 
                     {pos: 0.6, color: [76,186,23]}, 

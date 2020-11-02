@@ -11,6 +11,7 @@ export default class DrawThree {
 
     this.seaLevel = 0.15;
     this.keyDowns = [];
+    this.seaMeshNormals = 0;
     this.init();
   }
 
@@ -22,7 +23,7 @@ export default class DrawThree {
     const far = 300;
     this.scene.fog = new THREE.Fog(color, near, far);
     this.camera = new THREE.PerspectiveCamera( 60, this.windowWidth/this.windowHeight, 0.1, 300 );
-    this.camera.position.z = window.innerHeight/3;
+    this.camera.position.z = 400;
     this.camera.position.x = 0;
     this.camera.position.y = 15;
     this.drawTwo.updatePlayer(parseInt(this.camera.position.x), parseInt(this.camera.position.z));
@@ -31,7 +32,7 @@ export default class DrawThree {
     this.renderer.setSize( this.windowWidth, this.windowHeight );
     document.body.appendChild( this.renderer.domElement );
 
-    this.startTime = Date.now();
+    this.startTime = Date.now() + 40000;
     this.addLights();
 
     this.stats = new Stats();
@@ -61,6 +62,9 @@ export default class DrawThree {
       }
     }
 
+    this.inputWidth = width;
+    this.inputHeight = height;
+
     this.mapScale = scale;
     this.drawTwo.updatePlayer(parseInt(this.camera.position.x / this.mapScale), parseInt(this.camera.position.z / this.mapScale));
 
@@ -75,24 +79,21 @@ export default class DrawThree {
     let mesh = new THREE.Mesh( landGeometry, material );
     this.scene.add( mesh );
 
-    /**let seaGeometry = new THREE.BufferGeometry();
-    let [seaVertices, seaColors] = this.seaGeometryFromVerticies(input, amplitude, new THREE.Vector3(0, 0, 0));
+    let seaGeometry = new THREE.BufferGeometry();
+    let [seaVertices, seaColors] = this.seaGeometryFromVerticies(input, amplitude, new THREE.Vector3(0, 0, 0), this.mapScale);
 
     seaGeometry.setAttribute( 'position', new THREE.BufferAttribute( seaVertices, 3 ) );
     seaGeometry.setAttribute( 'color', new THREE.BufferAttribute( seaColors, 3 ) );
     seaGeometry.computeVertexNormals();
     seaGeometry.dynamic = true;
+    let seaMaterial = new THREE.MeshPhongMaterial( { vertexColors: true, transparent: true, shininess: 100 } );
+    seaMaterial.opacity = 0.7;
 
-    let seaMesh = new THREE.Mesh( seaGeometry, material );
-    this.scene.add( seaMesh );**/
+    this.seaMesh = new THREE.Mesh( seaGeometry, seaMaterial );
+    this.scene.add( this.seaMesh );
 
     window.requestAnimationFrame(() => {this.animate()});
-  }
-
-  animateSea() {    
-    //let verticies = this.customGeometry.attributes.position.array;
-
-    //requestAnimationFrame(() => { this.animateSeaCall = false; this.animate(); });
+    window.requestAnimationFrame(() => {this.animateSea(input, amplitude, new THREE.Vector3(0, 0, 0), 0.5)});
   }
 
   animate() {
@@ -103,7 +104,7 @@ export default class DrawThree {
 
     this.stats.begin();
 
-    let radians = -1 * (Date.now() - this.startTime) / 10000;
+    let radians = -1 * (Date.now() - this.startTime) / 40000;
     //Shortened night
     //if (Math.sin(radians) < -0.92 && Math.cos(radians) > 0) this.startTime = Date.now() - ((Math.PI * (11/8)) * -10000);
     this.sun.position.x = Math.cos(radians) * 1000;
@@ -111,21 +112,6 @@ export default class DrawThree {
     this.sun.color.setHex(this.getSunColor(Math.sin(radians)));
     this.scene.fog.color.setHex(this.getFogColor(Math.sin(radians)));
     this.scene.background.setHex(this.getBGColor(Math.sin(radians)));
-
-    /**
-    let speed = 0.1;
-
-    let lookAtVector = new THREE.Vector3(0,0, -1);
-    let lookUpVector = new THREE.Vector3(0,-1, 0);
-    lookAtVector.applyQuaternion(this.camera.quaternion);
-    lookUpVector.applyQuaternion(this.camera.quaternion);
-    let lookSidewaysVector = new THREE.Vector3().crossVectors(lookAtVector, lookUpVector); 
-
-    this.camera.position.x += lookAtVector.x * speed;
-    this.camera.position.y += lookAtVector.y * speed;
-    this.camera.position.z += lookAtVector.z * speed;
-
-    this.drawTwo.updatePlayer(parseInt(this.camera.position.x), parseInt(this.camera.position.z), lookAtVector.x, lookAtVector.z); */
 
     this.renderer.render( this.scene, this.camera );
 
@@ -142,7 +128,7 @@ export default class DrawThree {
     if (posY > 0) {
       return this.getWeightedColor(posY, '#87ceeb', '#ff9608');
     } else {
-      return this.getWeightedColor(posY, '#000000', '#ff9608');
+      return this.getWeightedColor(posY * 1.5, '#000000', '#ff9608');
     }
   }
 
@@ -150,14 +136,14 @@ export default class DrawThree {
     if (posY > 0) {
       return this.getWeightedColor(posY, '#87ceeb', '#ff9608');
     } else {
-      return this.getWeightedColor(posY, '#000000', '#ff9608');
+      return this.getWeightedColor(posY * 1.5, '#000000', '#ff9608');
     }
   }
 
   getWeightedColor(y, colorMax, colorMin) {
     let colorMaxRGB = this.hexToRgb(colorMax);
     let colorMinRGB = this.hexToRgb(colorMin);
-    y = Math.abs(y);
+    y = Math.min(1, Math.abs(y));
 
     let finalRGB = {
       r: parseInt((y * colorMaxRGB.r) + ((1 - y) * colorMinRGB.r)), 
@@ -174,6 +160,7 @@ export default class DrawThree {
     let tempDivider = 1;
     let vertices = new Float32Array(matrix.length * matrix[0].length * 18);
     let colors = new Float32Array(matrix.length * matrix[0].length * 18);
+    let seaLevel = 0;
     
     for (let y = 0; y < matrix[0].length - 1; y++) {
       for (let x = 0; x < matrix.length - 1; x++) {
@@ -181,15 +168,15 @@ export default class DrawThree {
         //if (!(matrix[x][y] < this.seaLevel && matrix[x + 1][y] < this.seaLevel && matrix[x][y + 1] < this.seaLevel && matrix[x + 1][y + 1] < this.seaLevel)) {
           // Triangle 1
           vertices[arrayPosition + 0] = ((x + 0) - (matrix.length/2.0) + 0.5 + offset.x) * scale;
-          vertices[arrayPosition + 1] = Math.max(this.seaLevel, matrix[x][y]) * amplitude + offset.y;
+          vertices[arrayPosition + 1] = Math.max(seaLevel, matrix[x][y]) * amplitude + offset.y;
           vertices[arrayPosition + 2] = ((y + 0) - (matrix[0].length/2.0) + offset.z) * scale;
     
           vertices[arrayPosition + 3] = ((x + 0) - (matrix.length/2.0) + 0.5 + offset.x) * scale;
-          vertices[arrayPosition + 4] = Math.max(this.seaLevel, matrix[x][y + 1]) * amplitude + offset.y;
+          vertices[arrayPosition + 4] = Math.max(seaLevel, matrix[x][y + 1]) * amplitude + offset.y;
           vertices[arrayPosition + 5] = ((y + 1) - (matrix[0].length/2.0) + offset.z) * scale;
     
           vertices[arrayPosition + 6] = ((x + 1) - (matrix.length/2.0) + 0.5 + offset.x) * scale;
-          vertices[arrayPosition + 7] = Math.max(this.seaLevel, matrix[x + 1][y + 1]) * amplitude + offset.y;
+          vertices[arrayPosition + 7] = Math.max(seaLevel, matrix[x + 1][y + 1]) * amplitude + offset.y;
           vertices[arrayPosition + 8] = ((y + 1) - (matrix[0].length/2.0) + offset.z) * scale;
 
           tempRGB = MapGeneration.getColorFromHeight(matrix[x][y]/tempDivider);
@@ -212,15 +199,15 @@ export default class DrawThree {
     
           // Triangle 2
           vertices[arrayPosition + 9] = ((x + 0) - (matrix.length/2.0) + 0.5 + offset.x) * scale;
-          vertices[arrayPosition + 10] = Math.max(this.seaLevel, matrix[x][y]) * amplitude + offset.y;
+          vertices[arrayPosition + 10] = Math.max(seaLevel, matrix[x][y]) * amplitude + offset.y;
           vertices[arrayPosition + 11] = ((y + 0) - (matrix[0].length/2.0) + offset.z) * scale;
     
           vertices[arrayPosition + 12] = ((x + 1) - (matrix.length/2.0) + 0.5 + offset.x) * scale;
-          vertices[arrayPosition + 13] = Math.max(this.seaLevel, matrix[x + 1][y + 1]) * amplitude + offset.y;
+          vertices[arrayPosition + 13] = Math.max(seaLevel, matrix[x + 1][y + 1]) * amplitude + offset.y;
           vertices[arrayPosition + 14] = ((y + 1) - (matrix[0].length/2) + offset.z) * scale;
     
           vertices[arrayPosition + 15] = ((x + 1) - (matrix.length/2.0) + 0.5 + offset.x) * scale;
-          vertices[arrayPosition + 16] = Math.max(this.seaLevel, matrix[x + 1][y]) * amplitude + offset.y;
+          vertices[arrayPosition + 16] = Math.max(seaLevel, matrix[x + 1][y]) * amplitude + offset.y;
           vertices[arrayPosition + 17] = ((y + 0) - (matrix[0].length/2) + offset.z) * scale;
 
           tempRGB = MapGeneration.getColorFromHeight(matrix[x][y]/tempDivider);
@@ -247,74 +234,77 @@ export default class DrawThree {
 	  return [vertices, colors];
   }
 
-  seaGeometryFromVerticies(matrix, amplitude, offset) {
+  seaGeometryFromVerticies(matrix, amplitude, offset, scale = 1) {
     let color = new THREE.Color();
-    let tempRGB = [];
-    let tempDivider = 1;
-    let vertices = new Float32Array(matrix.length * matrix[0].length * 18);
-    let colors = new Float32Array(matrix.length * matrix[0].length * 18);
+    let tempRGB = [30,144,255];
+    let factor = 4;
+    let width = matrix.length / factor;
+    let height = matrix[0].length / factor;
+    let vertices = new Float32Array(width * height * 18);
+    let colors = new Float32Array(width * height * 18);
+    scale = scale * factor;
     
-    for (let y = 0; y < matrix[0].length - 1; y++) {
-      for (let x = 0; x < matrix.length - 1; x++) {
-        let arrayPosition = (x * 18) + (y * matrix.length * 18);
-        if (matrix[x][y] < this.seaLevel && matrix[x + 1][y] < this.seaLevel && matrix[x][y + 1] < this.seaLevel && matrix[x + 1][y + 1] < this.seaLevel) {
+    for (let y = 0; y < height - 1; y++) {
+      for (let x = 0; x < width - 1; x++) {
+        let arrayPosition = (x * 18) + (y * width * 18);
+        if (matrix[x * factor][y * factor] < this.seaLevel + 0.2 && matrix[x * factor + 1][y * factor] < this.seaLevel + 0.2 && matrix[x * factor][y * factor + 1] < this.seaLevel + 0.2 && matrix[x * factor + 1][y * factor + 1] < this.seaLevel + 0.2) {
           // Triangle 1
-          vertices[arrayPosition + 0] = (x + 0) - (matrix.length/2.0) + 0.5 + offset.x;
-          vertices[arrayPosition + 1] = Math.max(this.seaLevel, matrix[x][y]) * amplitude + offset.y;
-          vertices[arrayPosition + 2] = (y + 0) - (matrix[0].length/2.0) + offset.z;
+          vertices[arrayPosition + 0] = ((x + 0) - (width/2) + 0.5 + offset.x) * scale;
+          vertices[arrayPosition + 1] = this.seaLevel * amplitude + offset.y;
+          vertices[arrayPosition + 2] = ((y + 0) - (height/2) + offset.z) * scale;
     
-          vertices[arrayPosition + 3] = (x + 0) - (matrix.length/2.0) + 0.5 + offset.x;
-          vertices[arrayPosition + 4] = Math.max(this.seaLevel, matrix[x][y + 1]) * amplitude + offset.y;
-          vertices[arrayPosition + 5] = (y + 1) - (matrix[0].length/2.0) + offset.z;
+          vertices[arrayPosition + 3] = ((x + 0) - (width/2) + 0.5 + offset.x) * scale;
+          vertices[arrayPosition + 4] = this.seaLevel * amplitude + offset.y;
+          vertices[arrayPosition + 5] = ((y + 1) - (height/2) + offset.z) * scale;
     
-          vertices[arrayPosition + 6] = (x + 1) - (matrix.length/2.0) + 0.5 + offset.x;
-          vertices[arrayPosition + 7] = Math.max(this.seaLevel, matrix[x + 1][y + 1]) * amplitude + offset.y;
-          vertices[arrayPosition + 8] = (y + 1) - (matrix[0].length/2.0) + offset.z;
+          vertices[arrayPosition + 6] = ((x + 1) - (width/2) + 0.5 + offset.x) * scale;
+          vertices[arrayPosition + 7] = this.seaLevel * amplitude + offset.y;
+          vertices[arrayPosition + 8] = ((y + 1) - (height/2) + offset.z) * scale;
 
-          tempRGB = MapGeneration.getColorFromHeight(matrix[x][y]/tempDivider);
+          //tempRGB = MapGeneration.getColorFromHeight(matrix[x][y]/tempDivider);
           color.setRGB(tempRGB[0] / 255, tempRGB[1] / 255, tempRGB[2] / 255);
           colors[arrayPosition + 0] = color.r;
           colors[arrayPosition + 1] = color.g;
           colors[arrayPosition + 2] = color.b;
 
-          tempRGB = MapGeneration.getColorFromHeight(matrix[x][y + 1]/tempDivider);
+          //tempRGB = MapGeneration.getColorFromHeight(matrix[x][y + 1]/tempDivider);
           color.setRGB(tempRGB[0] / 255, tempRGB[1] / 255, tempRGB[2] / 255);
           colors[arrayPosition + 3] = color.r;
           colors[arrayPosition + 4] = color.g;
           colors[arrayPosition + 5] = color.b;
 
-          tempRGB = MapGeneration.getColorFromHeight(matrix[x + 1][y + 1]/tempDivider);
+          //tempRGB = MapGeneration.getColorFromHeight(matrix[x + 1][y + 1]/tempDivider);
           color.setRGB(tempRGB[0] / 255, tempRGB[1] / 255, tempRGB[2] / 255);
           colors[arrayPosition + 6] = color.r;
           colors[arrayPosition + 7] = color.g;
           colors[arrayPosition + 8] = color.b;
     
           // Triangle 2
-          vertices[arrayPosition + 9] = (x + 0) - (matrix.length/2.0) + 0.5 + offset.x;
-          vertices[arrayPosition + 10] = Math.max(this.seaLevel, matrix[x][y]) * amplitude + offset.y;
-          vertices[arrayPosition + 11] = (y + 0) - (matrix[0].length/2.0) + offset.z;
+          vertices[arrayPosition + 9] = ((x + 0) - (width/2) + 0.5 + offset.x) * scale;
+          vertices[arrayPosition + 10] = this.seaLevel * amplitude + offset.y
+          vertices[arrayPosition + 11] = ((y + 0) - (height/2.0) + offset.z) * scale;
     
-          vertices[arrayPosition + 12] = (x + 1) - (matrix.length/2.0) + 0.5 + offset.x;
-          vertices[arrayPosition + 13] = Math.max(this.seaLevel, matrix[x + 1][y + 1]) * amplitude + offset.y;
-          vertices[arrayPosition + 14] = (y + 1) - (matrix[0].length/2) + offset.z;
+          vertices[arrayPosition + 12] = ((x + 1) - (width/2) + 0.5 + offset.x) * scale;
+          vertices[arrayPosition + 13] = this.seaLevel * amplitude + offset.y;
+          vertices[arrayPosition + 14] = ((y + 1) - (height/2) + offset.z) * scale;
     
-          vertices[arrayPosition + 15] = (x + 1) - (matrix.length/2.0) + 0.5 + offset.x;
-          vertices[arrayPosition + 16] = Math.max(this.seaLevel, matrix[x + 1][y]) * amplitude + offset.y;
-          vertices[arrayPosition + 17] = (y + 0) - (matrix[0].length/2) + offset.z;
+          vertices[arrayPosition + 15] = ((x + 1) - (width/2) + 0.5 + offset.x) * scale;
+          vertices[arrayPosition + 16] = this.seaLevel * amplitude + offset.y;
+          vertices[arrayPosition + 17] = ((y + 0) - (height/2) + offset.z) * scale;
 
-          tempRGB = MapGeneration.getColorFromHeight(matrix[x][y]/tempDivider);
+          //tempRGB = MapGeneration.getColorFromHeight(matrix[x][y]/tempDivider);
           color.setRGB(tempRGB[0] / 255, tempRGB[1] / 255, tempRGB[2] / 255);
           colors[arrayPosition + 9] = color.r;
           colors[arrayPosition + 10] = color.g;
           colors[arrayPosition + 11] = color.b;
 
-          tempRGB = MapGeneration.getColorFromHeight(matrix[x + 1][y + 1]/tempDivider);
+          //tempRGB = MapGeneration.getColorFromHeight(matrix[x + 1][y + 1]/tempDivider);
           color.setRGB(tempRGB[0] / 255, tempRGB[1] / 255, tempRGB[2] / 255);
           colors[arrayPosition + 12] = color.r;
           colors[arrayPosition + 13] = color.g;
           colors[arrayPosition + 14] = color.b;
 
-          tempRGB = MapGeneration.getColorFromHeight(matrix[x + 1][y]/tempDivider);
+          //tempRGB = MapGeneration.getColorFromHeight(matrix[x + 1][y]/tempDivider);
           color.setRGB(tempRGB[0] / 255, tempRGB[1] / 255, tempRGB[2] / 255);
           colors[arrayPosition + 15] = color.r;
           colors[arrayPosition + 16] = color.g;
@@ -324,6 +314,64 @@ export default class DrawThree {
     }
 
 	  return [vertices, colors];
+  }
+
+  animateSea(matrix, amplitude, offset, waveHeight = 1) {
+    let seaVerticies = this.seaMesh.geometry.attributes.position.array;
+    let timeOffset = (Date.now() - this.startTime)/1000;
+    let waveLength = 2;
+    let factor = 4;
+
+    let playerX = parseInt((this.camera.position.x + (matrix.length/2 * this.mapScale))/(this.mapScale));
+    let playerY = parseInt((this.camera.position.z + (matrix.length/2 * this.mapScale))/(this.mapScale));
+    let yMin = parseInt(Math.max(0, playerY - 25)/factor);
+    let yMax = parseInt(Math.min(matrix[0].length - 1, playerY + 25)/factor);
+    let xMin = parseInt(Math.max(0, playerX - 25)/factor);
+    let xMax = parseInt(Math.min(matrix.length - 1, playerX + 25)/factor);
+
+    let width = matrix.length / factor;
+    let height = matrix[0].length / factor;
+
+    let computedValues = [];
+    let precomputed = this.seaLevel * amplitude + offset.y;
+
+    for (let y = 0; y < height - 1; y++) {
+      for (let x = 0; x < width - 1; x++) {
+
+        let arrayPosition = (x * 18) + (y * width * 18);
+        if (seaVerticies[arrayPosition + 1]) {
+          if (!computedValues[x + y]) computedValues[x + y] = precomputed + (Math.sin((timeOffset + x + y)/waveLength) * waveHeight);
+          seaVerticies[arrayPosition + 1] = computedValues[x + y];
+        }
+        if (seaVerticies[arrayPosition + 4]) {
+          if (!computedValues[x + y + 1]) computedValues[x + y + 1] = precomputed + (Math.sin((timeOffset + x + y + 1)/waveLength) * waveHeight);
+          seaVerticies[arrayPosition + 4] = computedValues[x + y + 1];
+        }
+        if (seaVerticies[arrayPosition + 7]) {
+          if (!computedValues[x + y + 2]) computedValues[x + y + 2] = precomputed + (Math.sin((timeOffset + x + y + 2)/waveLength) * waveHeight);
+          seaVerticies[arrayPosition + 7] = computedValues[x + y + 2];
+        }
+        if (seaVerticies[arrayPosition + 10]) {
+          if (!computedValues[x + y]) computedValues[x + y] = precomputed + (Math.sin((timeOffset + x + y)/waveLength) * waveHeight);
+          seaVerticies[arrayPosition + 10] = computedValues[x + y];
+        }
+        if (seaVerticies[arrayPosition + 13]) {
+          if (!computedValues[x + y + 2]) computedValues[x + y + 2] = precomputed + (Math.sin((timeOffset + x + y + 2)/waveLength) * waveHeight);
+          seaVerticies[arrayPosition + 13] = computedValues[x + y + 2];
+        }
+        if (seaVerticies[arrayPosition + 16]) {
+          if (!computedValues[x + y + 1]) computedValues[x + y + 1] = precomputed + (Math.sin((timeOffset + x + y + 1)/waveLength) * waveHeight);
+          seaVerticies[arrayPosition + 16] = computedValues[x + y + 1];
+        }
+      }
+    }
+
+    this.seaMeshNormals = (this.seaMeshNormals + 1) % 15;
+
+    if (this.seaMeshNormals === 0) this.seaMesh.geometry.computeVertexNormals();
+    this.seaMesh.geometry.attributes.position.needsUpdate = true;
+
+    window.requestAnimationFrame(() => {this.animateSea(matrix, amplitude, offset, waveHeight)});
   }
 
   onDocumentKeyPressDown(event) {
