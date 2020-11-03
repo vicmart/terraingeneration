@@ -12,6 +12,16 @@ export default class DrawThree {
     this.seaLevel = 0.15;
     this.keyDowns = [];
     this.seaMeshNormals = 0;
+
+    this.throttle = 0.1;
+    this.throttleStep = 0.001;
+    this.minThrottle = 0.05;
+    this.maxThrottle = 0.3;
+
+    this.turnSpeed = 0.003;
+    this.noseSpeed = 0.003;
+    this.rotateSpeed = 0.005;
+
     this.init();
   }
 
@@ -32,7 +42,7 @@ export default class DrawThree {
     this.renderer.setSize( this.windowWidth, this.windowHeight );
     document.body.appendChild( this.renderer.domElement );
 
-    this.startTime = Date.now() + 20000;
+    this.startTime = Date.now() - 65000;
     this.addLights();
 
     this.stats = new Stats();
@@ -50,6 +60,34 @@ export default class DrawThree {
 
     let ambientLight = new THREE.AmbientLight( 0x404040, 0.25 );
     this.scene.add(ambientLight);
+
+    this.spotLightRight = new THREE.SpotLight( 0xffffff, 0.5 );
+    this.spotLightRight.distance = 150;
+    this.spotLightRight.decay = 3;
+    this.spotLightRight.angle = Math.PI/11;
+
+    this.spotLightRight.position.set(0.075, 0.02, 0.25);
+    this.camera.add(this.spotLightRight);
+    this.spotLightRight.target = this.camera;
+
+    this.spotLightLeft = new THREE.SpotLight( 0xffffff, 0.5 );
+    this.spotLightLeft.distance = 150;
+    this.spotLightLeft.decay = 3;
+    this.spotLightLeft.angle = Math.PI/11;
+
+    this.spotLightLeft.position.set(-0.075, 0.02, 0.25);
+    this.camera.add(this.spotLightLeft);
+    this.spotLightLeft.target = this.camera;
+
+    let cubeGeometry = new THREE.BoxGeometry( 1, 1, 1 );
+    let cubeMaterial = new THREE.MeshLambertMaterial( {color: 0xff0000} );
+    this.player = new THREE.Mesh( cubeGeometry, cubeMaterial );
+    this.player.position.set(0, -1, -1.5);
+    this.camera.add( this.player );
+
+    this.scene.add(this.camera);
+
+    //this.scene.add(this.spotLight);
   }
 
   renderMap(heightMap, width, height, amplitude, scale) {
@@ -75,7 +113,7 @@ export default class DrawThree {
     landGeometry.setAttribute( 'color', new THREE.BufferAttribute( colors, 3 ) );
     landGeometry.computeVertexNormals();
 
-    let material = new THREE.MeshLambertMaterial( { vertexColors: true } );
+    let material = new THREE.MeshPhongMaterial( { vertexColors: true } );
     let mesh = new THREE.Mesh( landGeometry, material );
     this.scene.add( mesh );
 
@@ -92,13 +130,6 @@ export default class DrawThree {
     this.seaMesh = new THREE.Mesh( seaGeometry, seaMaterial );
     this.scene.add( this.seaMesh );
 
-    let cubeGeometry = new THREE.BoxGeometry( 1, 1, 1 );
-    let cubeMaterial = new THREE.MeshLambertMaterial( {color: 0xff0000} );
-    this.player = new THREE.Mesh( cubeGeometry, cubeMaterial );
-    this.player.position.y = 15;
-    this.player.position.z = 400;
-    this.scene.add( this.player );
-
     window.requestAnimationFrame(() => {this.animate()});
   }
 
@@ -113,11 +144,22 @@ export default class DrawThree {
     let radians = -1 * (Date.now() - this.startTime) / 20000;
     //Shortened night
     //if (Math.sin(radians) < -0.92 && Math.cos(radians) > 0) this.startTime = Date.now() - ((Math.PI * (11/8)) * -10000);
+    let yPos = Math.sin(radians);
     this.sun.position.x = Math.cos(radians) * 1000;
-    this.sun.position.y = Math.sin(radians) * 1000;
-    this.sun.color.setHex(this.getSunColor(Math.sin(radians)));
-    this.scene.fog.color.setHex(this.getFogColor(Math.sin(radians)));
-    this.scene.background.setHex(this.getBGColor(Math.sin(radians)));
+    this.sun.position.y = yPos * 1000;
+    this.sun.color.setHex(this.getSunColor(yPos));
+    this.scene.fog.color.setHex(this.getFogColor(yPos));
+    this.scene.background.setHex(this.getBGColor(yPos));
+
+    if (yPos < -0.1) {
+      this.spotLightLeft.intensity = 0.5;
+      this.spotLightRight.intensity = 0.5;
+    } else {
+      this.spotLightLeft.intensity = 0
+      this.spotLightRight.intensity = 0;
+    }
+    
+    this.autoMove();
 
     this.animateSea();
 
@@ -407,8 +449,6 @@ export default class DrawThree {
 
   onDocumentKeyPress(event) {
     let speed = 0.1;
-    let rotationSpeedVertical = 0.01;
-    let rotationSpeedHorizontal = 0.02;
 
     let lookAtVector = new THREE.Vector3(0,0, -1);
     let lookUpVector = new THREE.Vector3(0,-1, 0);
@@ -419,27 +459,33 @@ export default class DrawThree {
     for (let keyCode of this.keyDowns) {
       //A
       if ( keyCode == 65 ) {
-        this.camera.position.x += lookSidewaysVector.x * speed;
-        this.camera.position.y += lookSidewaysVector.y * speed;
-        this.camera.position.z += lookSidewaysVector.z * speed;
+        this.camera.rotateOnWorldAxis(lookAtVector, -this.rotateSpeed);
+
+        //this.camera.position.x += lookSidewaysVector.x * speed;
+        //this.camera.position.y += lookSidewaysVector.y * speed;
+        //this.camera.position.z += lookSidewaysVector.z * speed;
       }
       //D
       else if ( keyCode == 68 ) {
-        this.camera.position.x -= lookSidewaysVector.x * speed;
-        this.camera.position.y -= lookSidewaysVector.y * speed;
-        this.camera.position.z -= lookSidewaysVector.z * speed;
+        this.camera.rotateOnWorldAxis(lookAtVector, this.rotateSpeed);
+
+        //this.camera.position.x -= lookSidewaysVector.x * speed;
+        //this.camera.position.y -= lookSidewaysVector.y * speed;
+        //this.camera.position.z -= lookSidewaysVector.z * speed;
       }
       //W
       else if ( keyCode == 87 ) {
-        this.camera.position.x += lookAtVector.x * speed;
-        this.camera.position.y += lookAtVector.y * speed;
-        this.camera.position.z += lookAtVector.z * speed;
+        this.throttle = Math.min(this.throttle + this.throttleStep, this.maxThrottle);
+        //this.camera.position.x += lookAtVector.x * speed;
+        //this.camera.position.y += lookAtVector.y * speed;
+        //this.camera.position.z += lookAtVector.z * speed;
       }
       //S
       else if ( keyCode == 83 ) {
-        this.camera.position.x -= lookAtVector.x * speed;
-        this.camera.position.y -= lookAtVector.y * speed;
-        this.camera.position.z -= lookAtVector.z * speed;
+        this.throttle = Math.max(this.throttle - this.throttleStep, this.minThrottle);
+        //this.camera.position.x -= lookAtVector.x * speed;
+        //this.camera.position.y -= lookAtVector.y * speed;
+        //this.camera.position.z -= lookAtVector.z * speed;
       }
       //Q
       else if ( keyCode == 81 ) {
@@ -457,22 +503,22 @@ export default class DrawThree {
       //Up
       else if ( keyCode == 38 )
       {
-        this.camera.rotateOnWorldAxis(lookSidewaysVector, -rotationSpeedVertical);
+        this.camera.rotateOnWorldAxis(lookSidewaysVector, -this.noseSpeed);
       }
       //Down
       else if ( keyCode == 40 )
       {
-        this.camera.rotateOnWorldAxis(lookSidewaysVector, rotationSpeedVertical);
+        this.camera.rotateOnWorldAxis(lookSidewaysVector, this.noseSpeed);
       }
       //Left
       else if ( keyCode == 37 )
       {
-        this.camera.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), rotationSpeedHorizontal);
+        this.camera.rotateOnWorldAxis(lookUpVector, -this.turnSpeed);
       }
       //Right
       else if ( keyCode == 39 )
       {
-        this.camera.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), -rotationSpeedHorizontal);
+        this.camera.rotateOnWorldAxis(lookUpVector, this.turnSpeed);
       }
     }
 
@@ -481,6 +527,17 @@ export default class DrawThree {
     if (this.keyDowns.length > 0) {
       window.requestAnimationFrame(() => {this.onDocumentKeyPress()});
     }
+  }
+
+  autoMove() {
+    let lookAtVector = new THREE.Vector3(0,0, -1);
+    lookAtVector.applyQuaternion(this.camera.quaternion);
+
+    this.camera.position.x += lookAtVector.x * this.throttle;
+    this.camera.position.y += lookAtVector.y * this.throttle;
+    this.camera.position.z += lookAtVector.z * this.throttle;
+
+    this.drawTwo.updatePlayer(parseInt(this.camera.position.x / this.mapScale), parseInt(this.camera.position.z / this.mapScale), lookAtVector.x, lookAtVector.z);
   }
 
   componentToHex(c) {
