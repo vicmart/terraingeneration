@@ -18,9 +18,17 @@ export default class DrawThree {
     this.minThrottle = 0.05;
     this.maxThrottle = 0.3;
 
-    this.turnSpeed = 0.003;
-    this.noseSpeed = 0.003;
-    this.rotateSpeed = 0.005;
+    this.turnSpeed = 0;
+    this.turnSpeedStep = 0.00001;
+    this.maxTurnSpeed = 0.001;
+
+    this.noseSpeed = 0;
+    this.noseSpeedStep = 0.00003;
+    this.maxNoseSpeed = 0.002;
+
+    this.rotateSpeed = 0;
+    this.rotateSpeedStep = 0.00005;
+    this.maxRotateSpeed = 0.003;
 
     this.init();
   }
@@ -62,7 +70,7 @@ export default class DrawThree {
     this.scene.add(ambientLight);
 
     this.spotLightRight = new THREE.SpotLight( 0xffffff, 0.5 );
-    this.spotLightRight.distance = 150;
+    this.spotLightRight.distance = 300;
     this.spotLightRight.decay = 3;
     this.spotLightRight.angle = Math.PI/11;
 
@@ -71,7 +79,7 @@ export default class DrawThree {
     this.spotLightRight.target = this.camera;
 
     this.spotLightLeft = new THREE.SpotLight( 0xffffff, 0.5 );
-    this.spotLightLeft.distance = 150;
+    this.spotLightLeft.distance = 300;
     this.spotLightLeft.decay = 3;
     this.spotLightLeft.angle = Math.PI/11;
 
@@ -459,7 +467,7 @@ export default class DrawThree {
     for (let keyCode of this.keyDowns) {
       //A
       if ( keyCode == 65 ) {
-        this.camera.rotateOnWorldAxis(lookAtVector, -this.rotateSpeed);
+        this.rotateSpeed = Math.max(this.maxRotateSpeed * -1, this.rotateSpeed - this.rotateSpeedStep);
 
         //this.camera.position.x += lookSidewaysVector.x * speed;
         //this.camera.position.y += lookSidewaysVector.y * speed;
@@ -467,7 +475,7 @@ export default class DrawThree {
       }
       //D
       else if ( keyCode == 68 ) {
-        this.camera.rotateOnWorldAxis(lookAtVector, this.rotateSpeed);
+        this.rotateSpeed = Math.min(this.maxRotateSpeed, this.rotateSpeed + this.rotateSpeedStep);
 
         //this.camera.position.x -= lookSidewaysVector.x * speed;
         //this.camera.position.y -= lookSidewaysVector.y * speed;
@@ -503,22 +511,24 @@ export default class DrawThree {
       //Up
       else if ( keyCode == 38 )
       {
-        this.camera.rotateOnWorldAxis(lookSidewaysVector, -this.noseSpeed);
+        this.noseSpeed = Math.min(this.maxNoseSpeed, this.noseSpeed + this.noseSpeedStep);
       }
       //Down
       else if ( keyCode == 40 )
       {
-        this.camera.rotateOnWorldAxis(lookSidewaysVector, this.noseSpeed);
+        this.noseSpeed = Math.max(this.maxNoseSpeed * -1, this.noseSpeed - this.noseSpeedStep);
       }
       //Left
       else if ( keyCode == 37 )
       {
-        this.camera.rotateOnWorldAxis(lookUpVector, -this.turnSpeed);
+        this.turnSpeed = Math.max(this.maxTurnSpeed * -1, this.turnSpeed - this.turnSpeedStep);
+        //this.camera.rotateOnWorldAxis(lookUpVector, -this.turnSpeed);
       }
       //Right
       else if ( keyCode == 39 )
       {
-        this.camera.rotateOnWorldAxis(lookUpVector, this.turnSpeed);
+        this.turnSpeed = Math.min(this.maxTurnSpeed, this.turnSpeed + this.turnSpeedStep);
+        //this.camera.rotateOnWorldAxis(lookUpVector, this.turnSpeed);
       }
     }
 
@@ -531,11 +541,18 @@ export default class DrawThree {
 
   autoMove() {
     let lookAtVector = new THREE.Vector3(0,0, -1);
+    let lookUpVector = new THREE.Vector3(0,-1, 0);
     lookAtVector.applyQuaternion(this.camera.quaternion);
+    lookUpVector.applyQuaternion(this.camera.quaternion);
+    let lookSidewaysVector = new THREE.Vector3().crossVectors(lookAtVector, lookUpVector); 
 
     this.camera.position.x += lookAtVector.x * this.throttle;
     this.camera.position.y += lookAtVector.y * this.throttle;
     this.camera.position.z += lookAtVector.z * this.throttle;
+
+    this.camera.rotateOnWorldAxis(lookUpVector, this.turnSpeed);
+    this.camera.rotateOnWorldAxis(lookSidewaysVector, this.noseSpeed);
+    this.camera.rotateOnWorldAxis(lookAtVector, this.rotateSpeed);
 
     this.drawTwo.updatePlayer(parseInt(this.camera.position.x / this.mapScale), parseInt(this.camera.position.z / this.mapScale), lookAtVector.x, lookAtVector.z);
   }
