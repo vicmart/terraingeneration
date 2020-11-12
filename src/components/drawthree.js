@@ -19,7 +19,7 @@ export default class DrawThree {
     this.maxThrottle = 0.3;
 
     this.turnSpeed = 0;
-    this.turnSpeedStep = 0.00001;
+    this.turnSpeedStep = 0.00002;
     this.maxTurnSpeed = 0.001;
 
     this.noseSpeed = 0;
@@ -27,7 +27,7 @@ export default class DrawThree {
     this.maxNoseSpeed = 0.002;
 
     this.rotateSpeed = 0;
-    this.rotateSpeedStep = 0.00005;
+    this.rotateSpeedStep = 0.0001;
     this.maxRotateSpeed = 0.003;
 
     this.init();
@@ -133,7 +133,7 @@ export default class DrawThree {
     seaGeometry.computeVertexNormals();
     seaGeometry.dynamic = true;
     let seaMaterial = new THREE.MeshPhongMaterial( { vertexColors: true, transparent: true, shininess: 100 } );
-    seaMaterial.opacity = 0.75;
+    seaMaterial.opacity = 0.6;
 
     this.seaMesh = new THREE.Mesh( seaGeometry, seaMaterial );
     this.scene.add( this.seaMesh );
@@ -388,7 +388,7 @@ export default class DrawThree {
 
   animateSea() {
     let seaVerticies = this.seaMesh.geometry.attributes.position.array;
-    let timeOffset = (Date.now() - this.startTime)/1000;
+    let timeOffset = (Date.now() - this.startTime)/5000;
     let waveLength = 2;
     let factor = 4;
 
@@ -553,6 +553,10 @@ export default class DrawThree {
     this.camera.rotateOnWorldAxis(lookUpVector, this.turnSpeed);
     this.camera.rotateOnWorldAxis(lookSidewaysVector, this.noseSpeed);
     this.camera.rotateOnWorldAxis(lookAtVector, this.rotateSpeed);
+
+    this.turnSpeed = this.turnSpeed - (this.turnSpeed/200);
+    this.noseSpeed = this.noseSpeed - (this.noseSpeed/200);
+    this.rotateSpeed = this.rotateSpeed - (this.rotateSpeed/200);
 
     this.drawTwo.updatePlayer(parseInt(this.camera.position.x / this.mapScale), parseInt(this.camera.position.z / this.mapScale), lookAtVector.x, lookAtVector.z);
   }
