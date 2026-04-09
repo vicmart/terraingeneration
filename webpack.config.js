@@ -6,6 +6,9 @@ module.exports = {
   devtool: 'inline-source-map',
   devServer: {
     contentBase: './dist',
+    watchOptions: {
+      ignored: [/node_modules/, /dist/]
+    }
   },
   entry: './src/index.js',
   output: {
@@ -15,7 +18,7 @@ module.exports = {
   plugins: [
     new HtmlWebpackPlugin({
       template: './src/index.html',
-      fileName: './dist/index.html' //relative to root of the application
+      fileName: './index.html'
     })
   ]
 };
