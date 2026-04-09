@@ -19,7 +19,7 @@ window.onload = function() {
 	drawTwo.updateImage(map, Array(width * height).fill(0));
 
 	let drawThree = new DrawThree(drawTwo);
-	drawThree.renderMap(map, width, height, 35, 2);
+	drawThree.renderMap(map, width, height, 50, 2);
 
 	// Call the main loop
 	main(0);

@@ -1,6 +1,9 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import MapGeneration from "./mapgeneration.js";
 import Stats from "stats.js";
+
+const loader = new GLTFLoader();
 
 export default class DrawThree {
   constructor(drawTwo) {
@@ -37,7 +40,7 @@ export default class DrawThree {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color( 0x87ceeb );
     const color = 0x87ceeb;  // white
-    const near = 50;
+    const near = 200;
     const far = 300;
     this.scene.fog = new THREE.Fog(color, near, far);
     this.camera = new THREE.PerspectiveCamera( 60, this.windowWidth/this.windowHeight, 0.1, 300 );
@@ -48,6 +51,9 @@ export default class DrawThree {
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize( this.windowWidth, this.windowHeight );
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.renderSingleSided = false;
     document.body.appendChild( this.renderer.domElement );
 
     this.startTime = Date.now() - 65000;
@@ -63,8 +69,12 @@ export default class DrawThree {
 
   addLights() {
     this.sun = new THREE.PointLight( 0xffffe0, 1, 0 );
-    this.sun.position.set( 0, 1000, 0 );
+    this.sun.position.set( 0, 100, 0 );
+    //this.sun.castShadow = true;
+    this.sun.shadow.camera.fov = 180;
+    
     this.scene.add(this.sun);
+    this.scene.add( new THREE.CameraHelper( this.sun.shadow.camera ) );
 
     let ambientLight = new THREE.AmbientLight( 0x404040, 0.25 );
     this.scene.add(ambientLight);
@@ -121,9 +131,10 @@ export default class DrawThree {
     landGeometry.setAttribute( 'color', new THREE.BufferAttribute( colors, 3 ) );
     landGeometry.computeVertexNormals();
 
-    let material = new THREE.MeshPhongMaterial( { vertexColors: true } );
-    let mesh = new THREE.Mesh( landGeometry, material );
-    this.scene.add( mesh );
+    let landMaterial = new THREE.MeshPhongMaterial( { vertexColors: true } );
+    this.landMesh = new THREE.Mesh( landGeometry, landMaterial );
+    this.landMesh.receiveShadow = true;
+    this.scene.add( this.landMesh );
 
     let seaGeometry = new THREE.BufferGeometry();
     let [seaVertices, seaColors] = this.seaGeometryFromVerticies(input, amplitude, new THREE.Vector3(0, 0, 0), this.mapScale, 1);
@@ -137,6 +148,28 @@ export default class DrawThree {
 
     this.seaMesh = new THREE.Mesh( seaGeometry, seaMaterial );
     this.scene.add( this.seaMesh );
+
+    loader.load('static/tree.glb', (gltf) => {
+      let treeCount = 0;
+      let randomIndex = [0, 0];
+      let treeMesh = gltf.scene.children[0];
+      let treeMaterial = new THREE.MeshPhongMaterial( { vertexColors: true } );
+      treeMesh.castShadow = true;
+      treeMesh.material = treeMaterial;
+
+      while (treeCount < 1000) {
+        if (input[randomIndex[0]][randomIndex[1]] > 0.3 && input[randomIndex[0]][randomIndex[1]] < 0.6) {
+          let tempTreeMesh = treeMesh.clone();
+          tempTreeMesh.castShadow = true;
+          tempTreeMesh.material = treeMaterial;    
+          tempTreeMesh.position.set((randomIndex[0] - (width/2)) * scale, (input[randomIndex[0]][randomIndex[1]] * amplitude) + 5, (randomIndex[1] - (height/2)) * scale);
+          this.scene.add(tempTreeMesh);
+          treeCount++;
+        }
+
+        randomIndex = [parseInt(Math.random() * width), parseInt(Math.random() * height)];
+      }
+    }, null, null);
 
     window.requestAnimationFrame(() => {this.animate()});
   }
