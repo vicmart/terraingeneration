@@ -5,7 +5,7 @@ module.exports = {
   mode: 'development',
   devtool: 'inline-source-map',
   devServer: {
-    contentBase: './dist',
+    contentBase: [path.resolve(__dirname, 'dist'), path.resolve(__dirname)],
     watchOptions: {
       ignored: [/node_modules/, /dist/]
     }

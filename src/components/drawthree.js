@@ -92,10 +92,6 @@ export default class DrawThree {
     this.spotLightRight.decay = 3;
     this.spotLightRight.angle = Math.PI/11;
     this.spotLightRight.position.set(3, -0.5, 0);
-    this.spotLightRight.castShadow = true;
-    this.spotLightRight.shadow.mapSize.width = 1024;
-    this.spotLightRight.shadow.mapSize.height = 1024;
-    this.spotLightRight.shadow.camera.far = 300;
 
     const targetRight = new THREE.Object3D();
     targetRight.position.set(3, -0.5, -50);
@@ -108,10 +104,6 @@ export default class DrawThree {
     this.spotLightLeft.decay = 3;
     this.spotLightLeft.angle = Math.PI/11;
     this.spotLightLeft.position.set(-3, -0.5, 0);
-    this.spotLightLeft.castShadow = true;
-    this.spotLightLeft.shadow.mapSize.width = 1024;
-    this.spotLightLeft.shadow.mapSize.height = 1024;
-    this.spotLightLeft.shadow.camera.far = 300;
 
     const targetLeft = new THREE.Object3D();
     targetLeft.position.set(-3, -0.5, -50);
@@ -173,37 +165,50 @@ export default class DrawThree {
     this.scene.add( this.seaMesh );
 
     loader.load('static/tree.glb', (gltf) => {
-      let treeCount = 0;
-      let randomIndex = [0, 0];
-      let treeMesh = gltf.scene.children[0];
-      treeMesh.traverse((node) => {
+      const treeRoot = gltf.scene.children[0];
+      this.treeBaseQuaternion = treeRoot.quaternion.clone();
+      this.treeBaseScale = treeRoot.scale.clone();
+
+      const meshNodes = [];
+      gltf.scene.traverse((node) => {
         if (node.isMesh) {
-          node.castShadow = true;
-          node.receiveShadow = true;
           const color = (node.material && node.material.color) ? node.material.color.clone() : new THREE.Color(0x4a7c59);
           const hsl = {};
           color.getHSL(hsl);
           color.setHSL(hsl.h, hsl.s, Math.min(1, hsl.l * 3));
-          node.material = new THREE.MeshPhongMaterial({ color, shininess: 10 });
+          meshNodes.push({ geometry: node.geometry, material: new THREE.MeshPhongMaterial({ color, shininess: 10 }) });
         }
       });
 
-      while (treeCount < 1000) {
+      this.treeHiddenMatrix = new THREE.Matrix4();
+      this.treeHiddenMatrix.makeScale(0, 0, 0);
+
+      this.nearTreeMeshes = meshNodes.map(({ geometry, material }) => {
+        const mesh = new THREE.InstancedMesh(geometry, material, 5000);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.frustumCulled = false;
+        this.scene.add(mesh);
+        return mesh;
+      });
+
+      this.treePositions = [];
+      let treeCount = 0;
+      let randomIndex = [0, 0];
+
+      while (treeCount < 5000) {
         if (input[randomIndex[0]][randomIndex[1]] > 0.3 && input[randomIndex[0]][randomIndex[1]] < 0.6) {
-          let tempTreeMesh = treeMesh.clone();
-          tempTreeMesh.traverse((node) => {
-            if (node.isMesh) {
-              node.castShadow = true;
-              node.receiveShadow = true;
-            }
-          });    
-          tempTreeMesh.position.set((randomIndex[0] - (width/2) + 0.5) * scale, (input[randomIndex[0]][randomIndex[1]] * amplitude) + 1.5, (randomIndex[1] - (height/2)) * scale);
-          this.scene.add(tempTreeMesh);
+          this.treePositions.push(new THREE.Vector3(
+            (randomIndex[0] - (width/2) + 0.5) * scale,
+            (input[randomIndex[0]][randomIndex[1]] * amplitude) + 1.5,
+            (randomIndex[1] - (height/2)) * scale
+          ));
           treeCount++;
         }
-
         randomIndex = [parseInt(Math.random() * width), parseInt(Math.random() * height)];
       }
+
+      this.updateTreeLOD();
     }, null, null);
 
     window.requestAnimationFrame(() => {this.animate()});
@@ -244,6 +249,8 @@ export default class DrawThree {
     }
     
     this.autoMove();
+
+    this.updateTreeLOD();
 
     this.animateSea();
 
@@ -375,7 +382,7 @@ export default class DrawThree {
   seaGeometryFromVerticies(matrix, amplitude, offset, scale = 1, waveHeight = 0.5) {
     let color = new THREE.Color();
     let tempRGB = [30,144,255];
-    let factor = 4;
+    let factor = 2;
     let width = matrix.length / factor;
     let height = matrix[0].length / factor;
     let vertices = new Float32Array(width * height * 18);
@@ -462,11 +469,36 @@ export default class DrawThree {
 	  return [vertices, colors];
   }
 
+  updateTreeLOD() {
+    if (!this.treePositions || !this.nearTreeMeshes) return;
+
+    const dummy = new THREE.Object3D();
+    dummy.quaternion.copy(this.treeBaseQuaternion);
+    dummy.scale.copy(this.treeBaseScale);
+    const camPos = this.camera.position;
+    const hidden = this.treeHiddenMatrix;
+
+    for (let i = 0; i < this.treePositions.length; i++) {
+      const pos = this.treePositions[i];
+      const dist = camPos.distanceTo(pos);
+
+      if (dist < 300) {
+        dummy.position.copy(pos);
+        dummy.updateMatrix();
+        this.nearTreeMeshes.forEach(mesh => mesh.setMatrixAt(i, dummy.matrix));
+      } else {
+        this.nearTreeMeshes.forEach(mesh => mesh.setMatrixAt(i, hidden));
+      }
+    }
+
+    this.nearTreeMeshes.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; });
+  }
+
   animateSea() {
     let seaVerticies = this.seaMesh.geometry.attributes.position.array;
     let timeOffset = (Date.now() - this.startTime)/5000;
     let waveLength = 2;
-    let factor = 4;
+    let factor = 2;
 
     let playerX = parseInt((this.camera.position.x + (this.landWidth/2 * this.mapScale))/(this.mapScale));
     let playerY = parseInt((this.camera.position.z + (this.landHeight/2 * this.mapScale))/(this.mapScale));
@@ -477,12 +509,11 @@ export default class DrawThree {
 
     let computedValues = [];
     let precomputed = this.seaLevel * this.seaAmplitude + this.seaOffset.y;
-    
-    let width = this.landWidth/factor;
-    let height = this.landHeight/factor;
 
-    for (let y = 0; y < height - 1; y++) {
-      for (let x = 0; x < width - 1; x++) {
+    let width = this.landWidth/factor;
+
+    for (let y = yMin; y < yMax; y++) {
+      for (let x = xMin; x < xMax; x++) {
 
         let arrayPosition = (x * 18) + (y * width * 18);
         if (seaVerticies[arrayPosition + 1]) {
