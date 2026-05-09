@@ -68,34 +68,56 @@ export default class DrawThree {
   }
 
   addLights() {
-    this.sun = new THREE.PointLight( 0xffffe0, 1, 0 );
+    this.sun = new THREE.DirectionalLight( 0xffffe0, 1 );
     this.sun.position.set( 0, 100, 0 );
-    //this.sun.castShadow = true;
-    this.sun.shadow.camera.fov = 180;
-    
-    this.scene.add(this.sun);
-    this.scene.add( new THREE.CameraHelper( this.sun.shadow.camera ) );
+    this.sun.castShadow = true;
+    this.sun.shadow.camera.left   = -150;
+    this.sun.shadow.camera.right  =  150;
+    this.sun.shadow.camera.top    =  150;
+    this.sun.shadow.camera.bottom = -150;
+    this.sun.shadow.camera.near   = 0.5;
+    this.sun.shadow.camera.far    = 3000;
+    this.sun.shadow.mapSize.width  = 4096;
+    this.sun.shadow.mapSize.height = 4096;
+    this.sun.shadow.bias = -0.001;
 
-    let ambientLight = new THREE.AmbientLight( 0x404040, 0.25 );
-    this.scene.add(ambientLight);
+    this.scene.add(this.sun);
+    this.scene.add(this.sun.target);
+
+    this.hemisphereLight = new THREE.HemisphereLight( 0x87ceeb, 0x4cba17, 0.6 );
+    this.scene.add(this.hemisphereLight);
 
     this.spotLightRight = new THREE.SpotLight( 0xffffff, 0.5 );
     this.spotLightRight.distance = 300;
     this.spotLightRight.decay = 3;
     this.spotLightRight.angle = Math.PI/11;
+    this.spotLightRight.position.set(3, -0.5, 0);
+    this.spotLightRight.castShadow = true;
+    this.spotLightRight.shadow.mapSize.width = 1024;
+    this.spotLightRight.shadow.mapSize.height = 1024;
+    this.spotLightRight.shadow.camera.far = 300;
 
-    this.spotLightRight.position.set(0.075, 0.02, 0.25);
+    const targetRight = new THREE.Object3D();
+    targetRight.position.set(3, -0.5, -50);
     this.camera.add(this.spotLightRight);
-    this.spotLightRight.target = this.camera;
+    this.camera.add(targetRight);
+    this.spotLightRight.target = targetRight;
 
     this.spotLightLeft = new THREE.SpotLight( 0xffffff, 0.5 );
     this.spotLightLeft.distance = 300;
     this.spotLightLeft.decay = 3;
     this.spotLightLeft.angle = Math.PI/11;
+    this.spotLightLeft.position.set(-3, -0.5, 0);
+    this.spotLightLeft.castShadow = true;
+    this.spotLightLeft.shadow.mapSize.width = 1024;
+    this.spotLightLeft.shadow.mapSize.height = 1024;
+    this.spotLightLeft.shadow.camera.far = 300;
 
-    this.spotLightLeft.position.set(-0.075, 0.02, 0.25);
+    const targetLeft = new THREE.Object3D();
+    targetLeft.position.set(-3, -0.5, -50);
     this.camera.add(this.spotLightLeft);
-    this.spotLightLeft.target = this.camera;
+    this.camera.add(targetLeft);
+    this.spotLightLeft.target = targetLeft;
 
     let cubeGeometry = new THREE.BoxGeometry( 1, 1, 1 );
     let cubeMaterial = new THREE.MeshLambertMaterial( {color: 0xff0000} );
@@ -131,8 +153,9 @@ export default class DrawThree {
     landGeometry.setAttribute( 'color', new THREE.BufferAttribute( colors, 3 ) );
     landGeometry.computeVertexNormals();
 
-    let landMaterial = new THREE.MeshPhongMaterial( { vertexColors: true } );
+    let landMaterial = new THREE.MeshPhongMaterial( { vertexColors: true, color: 0x555555, shininess: 0 } );
     this.landMesh = new THREE.Mesh( landGeometry, landMaterial );
+    this.landMesh.castShadow = true;
     this.landMesh.receiveShadow = true;
     this.scene.add( this.landMesh );
 
@@ -153,16 +176,28 @@ export default class DrawThree {
       let treeCount = 0;
       let randomIndex = [0, 0];
       let treeMesh = gltf.scene.children[0];
-      let treeMaterial = new THREE.MeshPhongMaterial( { vertexColors: true } );
-      treeMesh.castShadow = true;
-      treeMesh.material = treeMaterial;
+      treeMesh.traverse((node) => {
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+          const color = (node.material && node.material.color) ? node.material.color.clone() : new THREE.Color(0x4a7c59);
+          const hsl = {};
+          color.getHSL(hsl);
+          color.setHSL(hsl.h, hsl.s, Math.min(1, hsl.l * 3));
+          node.material = new THREE.MeshPhongMaterial({ color, shininess: 10 });
+        }
+      });
 
       while (treeCount < 1000) {
         if (input[randomIndex[0]][randomIndex[1]] > 0.3 && input[randomIndex[0]][randomIndex[1]] < 0.6) {
           let tempTreeMesh = treeMesh.clone();
-          tempTreeMesh.castShadow = true;
-          tempTreeMesh.material = treeMaterial;    
-          tempTreeMesh.position.set((randomIndex[0] - (width/2)) * scale, (input[randomIndex[0]][randomIndex[1]] * amplitude) + 5, (randomIndex[1] - (height/2)) * scale);
+          tempTreeMesh.traverse((node) => {
+            if (node.isMesh) {
+              node.castShadow = true;
+              node.receiveShadow = true;
+            }
+          });    
+          tempTreeMesh.position.set((randomIndex[0] - (width/2) + 0.5) * scale, (input[randomIndex[0]][randomIndex[1]] * amplitude) + 1.5, (randomIndex[1] - (height/2)) * scale);
           this.scene.add(tempTreeMesh);
           treeCount++;
         }
@@ -186,11 +221,19 @@ export default class DrawThree {
     //Shortened night
     //if (Math.sin(radians) < -0.92 && Math.cos(radians) > 0) this.startTime = Date.now() - ((Math.PI * (11/8)) * -10000);
     let yPos = Math.sin(radians);
-    this.sun.position.x = Math.cos(radians) * 1000;
-    this.sun.position.y = yPos * 1000;
+    this.sun.target.position.copy(this.camera.position);
+    this.sun.target.updateMatrixWorld();
+    this.sun.position.set(
+      this.camera.position.x + Math.cos(radians) * 1000,
+      this.camera.position.y + yPos * 1000,
+      this.camera.position.z
+    );
+    this.sun.intensity = Math.max(0, yPos);
     this.sun.color.setHex(this.getSunColor(yPos));
     this.scene.fog.color.setHex(this.getFogColor(yPos));
     this.scene.background.setHex(this.getBGColor(yPos));
+    this.hemisphereLight.intensity = Math.max(0, yPos) * 0.6;
+    this.hemisphereLight.color.setHex(this.getBGColor(yPos));
 
     if (yPos < -0.1) {
       this.spotLightLeft.intensity = 0.5;
