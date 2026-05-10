@@ -5,14 +5,17 @@
   "private": true,
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "webpack-dev-server --open",
-    "build": "webpack",
+    "start": "NODE_OPTIONS=--openssl-legacy-provider webpack-dev-server --open",
+    "build": "NODE_OPTIONS=--openssl-legacy-provider webpack",
     "deploy": "git subtree push --prefix dist origin gh-pages"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/three": "^0.184.1",
+    "ts-loader": "^8.4.0",
+    "typescript": "^5.9.3",
     "webpack": "^4.41.2",
     "webpack-cli": "^3.3.10",
     "webpack-dev-server": "^3.9.0",
