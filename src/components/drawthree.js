@@ -12,7 +12,7 @@ export default class DrawThree {
     this.windowWidth = window.innerWidth;
     this.windowHeight = window.innerHeight;
 
-    this.seaLevel = 0.15;
+    this.seaLevel = 0.22;
     this.keyDowns = [];
     this.seaMeshNormals = 0;
 
@@ -44,9 +44,9 @@ export default class DrawThree {
     const far = 300;
     this.scene.fog = new THREE.Fog(color, near, far);
     this.camera = new THREE.PerspectiveCamera( 60, this.windowWidth/this.windowHeight, 0.1, 300 );
-    this.camera.position.z = 400;
+    this.camera.position.z = 500;
     this.camera.position.x = 0;
-    this.camera.position.y = 15;
+    this.camera.position.y = 30;
     this.drawTwo.updatePlayer(parseInt(this.camera.position.x), parseInt(this.camera.position.z));
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -56,7 +56,7 @@ export default class DrawThree {
     this.renderer.shadowMap.renderSingleSided = false;
     document.body.appendChild( this.renderer.domElement );
 
-    this.startTime = Date.now() - 65000;
+    this.startTime = Date.now() - 85000;
     this.addLights();
 
     this.stats = new Stats();
@@ -87,8 +87,8 @@ export default class DrawThree {
     this.hemisphereLight = new THREE.HemisphereLight( 0x87ceeb, 0x4cba17, 0.6 );
     this.scene.add(this.hemisphereLight);
 
-    this.spotLightRight = new THREE.SpotLight( 0xffffff, 0.5 );
-    this.spotLightRight.distance = 300;
+    this.spotLightRight = new THREE.SpotLight( 0xffffff, 10 );
+    this.spotLightRight.distance = 600;
     this.spotLightRight.decay = 3;
     this.spotLightRight.angle = Math.PI/11;
     this.spotLightRight.position.set(3, -0.5, 0);
@@ -99,8 +99,8 @@ export default class DrawThree {
     this.camera.add(targetRight);
     this.spotLightRight.target = targetRight;
 
-    this.spotLightLeft = new THREE.SpotLight( 0xffffff, 0.5 );
-    this.spotLightLeft.distance = 300;
+    this.spotLightLeft = new THREE.SpotLight( 0xffffff, 10 );
+    this.spotLightLeft.distance = 600;
     this.spotLightLeft.decay = 3;
     this.spotLightLeft.angle = Math.PI/11;
     this.spotLightLeft.position.set(-3, -0.5, 0);
@@ -152,7 +152,7 @@ export default class DrawThree {
     this.scene.add( this.landMesh );
 
     let seaGeometry = new THREE.BufferGeometry();
-    let [seaVertices, seaColors] = this.seaGeometryFromVerticies(input, amplitude, new THREE.Vector3(0, 0, 0), this.mapScale, 1);
+    let [seaVertices, seaColors] = this.seaGeometryFromVerticies(input, amplitude, new THREE.Vector3(0, 0, 0), this.mapScale, 2.5);
 
     seaGeometry.setAttribute( 'position', new THREE.BufferAttribute( seaVertices, 3 ) );
     seaGeometry.setAttribute( 'color', new THREE.BufferAttribute( seaColors, 3 ) );
@@ -163,6 +163,7 @@ export default class DrawThree {
 
     this.seaMesh = new THREE.Mesh( seaGeometry, seaMaterial );
     this.scene.add( this.seaMesh );
+    this.coastDistMap = this.buildCoastDistMap(input);
 
     loader.load('static/tree.glb', (gltf) => {
       const treeRoot = gltf.scene.children[0];
@@ -494,11 +495,91 @@ export default class DrawThree {
     this.nearTreeMeshes.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; });
   }
 
+  buildCoastDistMap(matrix) {
+    const factor = 2;
+    const sw = Math.floor(matrix.length / factor);
+    const sh = Math.floor(matrix[0].length / factor);
+    const distMap = new Float32Array(sw * sh).fill(-1);
+
+    const isSea = (x, y) => {
+      if (x < 0 || x >= sw - 1 || y < 0 || y >= sh - 1) return false;
+      return matrix[x*2][y*2]     < this.seaLevel + 0.2 &&
+             matrix[x*2+1][y*2]   < this.seaLevel + 0.2 &&
+             matrix[x*2][y*2+1]   < this.seaLevel + 0.2 &&
+             matrix[x*2+1][y*2+1] < this.seaLevel + 0.2;
+    };
+
+    // returns true only for in-bounds land cells (not OOB)
+    const isLand = (x, y) => {
+      if (x < 0 || x >= sw - 1 || y < 0 || y >= sh - 1) return false;
+      return !isSea(x, y);
+    };
+
+    // seed: sea cells adjacent to actual land (not map edges)
+    const queue = [];
+    for (let y = 0; y < sh - 1; y++) {
+      for (let x = 0; x < sw - 1; x++) {
+        if (!isSea(x, y)) continue;
+        if (isLand(x-1,y) || isLand(x+1,y) || isLand(x,y-1) || isLand(x,y+1)) {
+          distMap[y * sw + x] = 0;
+          queue.push(x, y);
+        }
+      }
+    }
+
+    let head = 0;
+    let maxDist = 0;
+    while (head < queue.length) {
+      const x = queue[head++];
+      const y = queue[head++];
+      const d = distMap[y * sw + x] + 1;
+      const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+      for (let i = 0; i < 4; i++) {
+        const nx = x + dirs[i][0];
+        const ny = y + dirs[i][1];
+        if (!isSea(nx, ny)) continue;
+        if (distMap[ny * sw + nx] >= 0) continue;
+        distMap[ny * sw + nx] = d;
+        if (d > maxDist) maxDist = d;
+        queue.push(nx, ny);
+      }
+    }
+
+    // box-blur the distance field to smooth staircase iso-contours
+    let src = distMap;
+    let dst = new Float32Array(sw * sh);
+    for (let pass = 0; pass < 7; pass++) {
+      for (let y = 0; y < sh; y++) {
+        for (let x = 0; x < sw; x++) {
+          if (src[y * sw + x] < 0) { dst[y * sw + x] = -1; continue; }
+          let sum = 0, count = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const v = (y+dy >= 0 && y+dy < sh && x+dx >= 0 && x+dx < sw) ? src[(y+dy)*sw+(x+dx)] : -1;
+              if (v >= 0) { sum += v; count++; }
+            }
+          }
+          dst[y * sw + x] = sum / count;
+        }
+      }
+      const tmp = src; src = dst; dst = tmp;
+    }
+
+    this.maxCoastDist = maxDist;
+    this.seaSpaceWidth = sw;
+    return src;
+  }
+
   animateSea() {
     let seaVerticies = this.seaMesh.geometry.attributes.position.array;
-    let timeOffset = (Date.now() - this.startTime)/5000;
+    let seaColors    = this.seaMesh.geometry.attributes.color.array;
+    let timeOffset = (Date.now() - this.startTime)/1000;
     let waveLength = 2;
     let factor = 2;
+
+    const darkR = 0.03, darkG = 0.18, darkB = 0.45;
+    const foamR = 0.92, foamG = 0.96, foamB = 1.00;
+    const invWaveHeight = this.waveHeight > 0 ? 1.0 / this.waveHeight : 0;
 
     let playerX = parseInt((this.camera.position.x + (this.landWidth/2 * this.mapScale))/(this.mapScale));
     let playerY = parseInt((this.camera.position.z + (this.landHeight/2 * this.mapScale))/(this.mapScale));
@@ -507,38 +588,79 @@ export default class DrawThree {
     let xMin = parseInt(Math.max(0, playerX - 200)/factor);
     let xMax = parseInt(Math.min(this.landWidth, playerX + 200)/factor) - 1;
 
-    let computedValues = [];
-    let precomputed = this.seaLevel * this.seaAmplitude + this.seaOffset.y;
+    if (!this.coastDistMap) return;
 
-    let width = this.landWidth/factor;
+    let precomputed = this.seaLevel * this.seaAmplitude + this.seaOffset.y;
+    let width = this.landWidth / factor;
+
+    const wl2 = waveLength * 1.5;
 
     for (let y = yMin; y < yMax; y++) {
       for (let x = xMin; x < xMax; x++) {
-
         let arrayPosition = (x * 18) + (y * width * 18);
+
+        const d_xy = this.coastDistMap[y * width + x];
+        if (d_xy < 0) continue;
+
+        // per-corner coast distances (neighbouring cells give smooth per-vertex phases)
+        const d_xy1  = this.coastDistMap[Math.min(y + 1, this.seaSpaceWidth - 1) * width + x];
+        const d_x1y1 = this.coastDistMap[Math.min(y + 1, this.seaSpaceWidth - 1) * width + Math.min(x + 1, width - 1)];
+        const d_x1y  = this.coastDistMap[y * width + Math.min(x + 1, width - 1)];
+
+        // per-corner amplitude and height — must use each corner's own distance for both
+        // phase and scale, otherwise adjacent cells compute a shared vertex differently → cracks
+        const cornerHeight = (d) => {
+          if (d < 0) return precomputed;
+          const inv = 1 - Math.min(1, d / this.maxCoastDist);
+          const s = this.waveHeight * inv * inv * inv * inv * inv * inv * inv * inv * inv * inv;
+          return precomputed + (Math.sin((timeOffset + d) / waveLength) * 0.7 + Math.sin((timeOffset * 0.73 + d * 0.85) / wl2) * 0.3) * s;
+        };
+
+        const v_xy   = cornerHeight(d_xy);
+        const v_xy1  = cornerHeight(d_xy1);
+        const v_x1y1 = cornerHeight(d_x1y1);
+        const v_x1y  = cornerHeight(d_x1y);
+
+        const foam_xy   = Math.min(1, Math.max(0, (v_xy   - precomputed) * invWaveHeight) * 0.5);
+        const foam_xy1  = Math.min(1, Math.max(0, (v_xy1  - precomputed) * invWaveHeight) * 0.5);
+        const foam_x1y1 = Math.min(1, Math.max(0, (v_x1y1 - precomputed) * invWaveHeight) * 0.5);
+        const foam_x1y  = Math.min(1, Math.max(0, (v_x1y  - precomputed) * invWaveHeight) * 0.5);
+
         if (seaVerticies[arrayPosition + 1]) {
-          if (!computedValues[x + y]) computedValues[x + y] = precomputed + (Math.sin((timeOffset + x + y)/waveLength) * this.waveHeight);
-          seaVerticies[arrayPosition + 1] = computedValues[x + y];
+          seaVerticies[arrayPosition + 1]  = v_xy;
+          seaColors[arrayPosition + 0] = darkR + (foamR - darkR) * foam_xy;
+          seaColors[arrayPosition + 1] = darkG + (foamG - darkG) * foam_xy;
+          seaColors[arrayPosition + 2] = darkB + (foamB - darkB) * foam_xy;
         }
         if (seaVerticies[arrayPosition + 4]) {
-          if (!computedValues[x + y + 1]) computedValues[x + y + 1] = precomputed + (Math.sin((timeOffset + x + y + 1)/waveLength) * this.waveHeight);
-          seaVerticies[arrayPosition + 4] = computedValues[x + y + 1];
+          seaVerticies[arrayPosition + 4]  = v_xy1;
+          seaColors[arrayPosition + 3] = darkR + (foamR - darkR) * foam_xy1;
+          seaColors[arrayPosition + 4] = darkG + (foamG - darkG) * foam_xy1;
+          seaColors[arrayPosition + 5] = darkB + (foamB - darkB) * foam_xy1;
         }
         if (seaVerticies[arrayPosition + 7]) {
-          if (!computedValues[x + y + 2]) computedValues[x + y + 2] = precomputed + (Math.sin((timeOffset + x + y + 2)/waveLength) * this.waveHeight);
-          seaVerticies[arrayPosition + 7] = computedValues[x + y + 2];
+          seaVerticies[arrayPosition + 7]  = v_x1y1;
+          seaColors[arrayPosition + 6] = darkR + (foamR - darkR) * foam_x1y1;
+          seaColors[arrayPosition + 7] = darkG + (foamG - darkG) * foam_x1y1;
+          seaColors[arrayPosition + 8] = darkB + (foamB - darkB) * foam_x1y1;
         }
         if (seaVerticies[arrayPosition + 10]) {
-          if (!computedValues[x + y]) computedValues[x + y] = precomputed + (Math.sin((timeOffset + x + y)/waveLength) * this.waveHeight);
-          seaVerticies[arrayPosition + 10] = computedValues[x + y];
+          seaVerticies[arrayPosition + 10] = v_xy;
+          seaColors[arrayPosition + 9]  = darkR + (foamR - darkR) * foam_xy;
+          seaColors[arrayPosition + 10] = darkG + (foamG - darkG) * foam_xy;
+          seaColors[arrayPosition + 11] = darkB + (foamB - darkB) * foam_xy;
         }
         if (seaVerticies[arrayPosition + 13]) {
-          if (!computedValues[x + y + 2]) computedValues[x + y + 2] = precomputed + (Math.sin((timeOffset + x + y + 2)/waveLength) * this.waveHeight);
-          seaVerticies[arrayPosition + 13] = computedValues[x + y + 2];
+          seaVerticies[arrayPosition + 13] = v_x1y1;
+          seaColors[arrayPosition + 12] = darkR + (foamR - darkR) * foam_x1y1;
+          seaColors[arrayPosition + 13] = darkG + (foamG - darkG) * foam_x1y1;
+          seaColors[arrayPosition + 14] = darkB + (foamB - darkB) * foam_x1y1;
         }
         if (seaVerticies[arrayPosition + 16]) {
-          if (!computedValues[x + y + 1]) computedValues[x + y + 1] = precomputed + (Math.sin((timeOffset + x + y + 1)/waveLength) * this.waveHeight);
-          seaVerticies[arrayPosition + 16] = computedValues[x + y + 1];
+          seaVerticies[arrayPosition + 16] = v_x1y;
+          seaColors[arrayPosition + 15] = darkR + (foamR - darkR) * foam_x1y;
+          seaColors[arrayPosition + 16] = darkG + (foamG - darkG) * foam_x1y;
+          seaColors[arrayPosition + 17] = darkB + (foamB - darkB) * foam_x1y;
         }
       }
     }
@@ -547,6 +669,7 @@ export default class DrawThree {
 
     if (this.seaMeshNormals === 0) this.seaMesh.geometry.computeVertexNormals();
     this.seaMesh.geometry.attributes.position.needsUpdate = true;
+    this.seaMesh.geometry.attributes.color.needsUpdate = true;
   }
 
   onDocumentKeyPressDown(event) {
